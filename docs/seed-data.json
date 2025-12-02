@@ -1,0 +1,214 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "created": "2025-12-01",
+    "description": "Seed data for Kitchen Order Management System based on original paper form"
+  },
+
+  "categories": [
+    {
+      "id": "cat-salads",
+      "name": "סלטים",
+      "name_en": "salads",
+      "max_selection": 10,
+      "sort_order": 1
+    },
+    {
+      "id": "cat-middle",
+      "name": "מנות ביניים",
+      "name_en": "middle_courses",
+      "max_selection": 2,
+      "sort_order": 2
+    },
+    {
+      "id": "cat-sides",
+      "name": "תוספות",
+      "name_en": "sides",
+      "max_selection": 3,
+      "sort_order": 3
+    },
+    {
+      "id": "cat-mains",
+      "name": "עיקריות",
+      "name_en": "mains",
+      "max_selection": 3,
+      "sort_order": 4
+    },
+    {
+      "id": "cat-extras",
+      "name": "אקסטרות",
+      "name_en": "extras",
+      "max_selection": null,
+      "sort_order": 5
+    }
+  ],
+
+  "liter_sizes": [
+    {
+      "id": "liter-1.5",
+      "size": 1.5,
+      "label": "1.5L",
+      "sort_order": 1
+    },
+    {
+      "id": "liter-2.5",
+      "size": 2.5,
+      "label": "2.5L",
+      "sort_order": 2
+    },
+    {
+      "id": "liter-3",
+      "size": 3.0,
+      "label": "3L",
+      "sort_order": 3
+    },
+    {
+      "id": "liter-4.5",
+      "size": 4.5,
+      "label": "4.5L",
+      "sort_order": 4
+    }
+  ],
+
+  "food_items": {
+    "salads": [
+      { "sort_order": 1, "name": "מטבוחה", "has_liters": true },
+      { "sort_order": 2, "name": "חציל מטוגן", "has_liters": true },
+      { "sort_order": 3, "name": "חציל במיונז", "has_liters": true },
+      { "sort_order": 4, "name": "חציל זעלוק", "has_liters": true },
+      { "sort_order": 5, "name": "חציל בלאדי", "has_liters": true },
+      { "sort_order": 6, "name": "סלק", "has_liters": true },
+      { "sort_order": 7, "name": "גזר מבושל", "has_liters": true },
+      { "sort_order": 8, "name": "גזר חי", "has_liters": true },
+      { "sort_order": 9, "name": "פלפל חריף", "has_liters": true },
+      { "sort_order": 10, "name": "חומוס", "has_liters": true },
+      { "sort_order": 11, "name": "טחינה", "has_liters": true },
+      { "sort_order": 12, "name": "ערבי", "has_liters": true },
+      { "sort_order": 13, "name": "ירקות", "has_liters": true },
+      { "sort_order": 14, "name": "חסה", "has_liters": true },
+      { "sort_order": 15, "name": "כרוב", "has_liters": true },
+      { "sort_order": 16, "name": "חמוצי הבית", "has_liters": true },
+      { "sort_order": 17, "name": "זיתים", "has_liters": true },
+      { "sort_order": 18, "name": "מלפפון בשמיר", "has_liters": true },
+      { "sort_order": 19, "name": "קונסולו", "has_liters": true },
+      { "sort_order": 20, "name": "כרוב אדום במיונז", "has_liters": true },
+      { "sort_order": 21, "name": "כרוב אדום חמוץ", "has_liters": true },
+      { "sort_order": 22, "name": "תירס ופטריות", "has_liters": true },
+      { "sort_order": 23, "name": "פול", "has_liters": true },
+      { "sort_order": 24, "name": "מיונז", "has_liters": true },
+      { "sort_order": 25, "name": "טאבולה", "has_liters": true },
+      { "sort_order": 26, "name": "ירוק", "has_liters": true },
+      { "sort_order": 27, "name": "לימון צ'רמלה", "has_liters": true },
+      { "sort_order": 28, "name": "ירק פיצוחים", "has_liters": true }
+    ],
+
+    "middle_courses": [
+      { "sort_order": 1, "name": "פילה מושט מזרחי", "has_liters": false },
+      { "sort_order": 2, "name": "פילה מושט מטוגן", "has_liters": false },
+      { "sort_order": 3, "name": "סול מטוגן", "has_liters": false },
+      { "sort_order": 4, "name": "סלומון מזרחי", "has_liters": false },
+      { "sort_order": 5, "name": "סלמון בעשבי תיבול", "has_liters": false },
+      { "sort_order": 6, "name": "גסיכה", "has_liters": false },
+      { "sort_order": 7, "name": "בורקס רוטב פטריות", "has_liters": false },
+      { "sort_order": 8, "name": "מאפה השף", "has_liters": false },
+      { "sort_order": 9, "name": "רול בשר", "has_liters": false },
+      { "sort_order": 10, "name": "רול ירקות", "has_liters": false },
+      { "sort_order": 11, "name": "חמין", "has_liters": false }
+    ],
+
+    "sides": [
+      { "sort_order": 1, "name": "אורז", "has_liters": false },
+      { "sort_order": 2, "name": "תפו\"א אפויים", "has_liters": false },
+      { "sort_order": 3, "name": "זיתים מרוקאים", "has_liters": false },
+      { "sort_order": 4, "name": "ארטישוק ופטריות", "has_liters": false },
+      { "sort_order": 5, "name": "אפונה וגזר", "has_liters": false },
+      { "sort_order": 6, "name": "אפונה וארטישוק", "has_liters": false },
+      { "sort_order": 7, "name": "ירקות מוקפצים", "has_liters": false },
+      { "sort_order": 8, "name": "שעועית ברוטב", "has_liters": false },
+      { "sort_order": 9, "name": "שעועית מוקפצת", "has_liters": false },
+      { "sort_order": 10, "name": "קוסקוס", "has_liters": false },
+      { "sort_order": 11, "name": "ירקות לקוסקוס", "has_liters": false }
+    ],
+
+    "mains": [
+      { "sort_order": 1, "name": "כרעיים אפוי", "has_liters": false },
+      { "sort_order": 2, "name": "חצאי כרעיים", "has_liters": false },
+      { "sort_order": 3, "name": "פרגיות", "has_liters": false },
+      { "sort_order": 4, "name": "שניצל מטוגן", "has_liters": false },
+      { "sort_order": 5, "name": "חצאי שניצל", "has_liters": false },
+      { "sort_order": 6, "name": "בשר ברוטב", "has_liters": false },
+      { "sort_order": 7, "name": "לשון ברוטב", "has_liters": false },
+      { "sort_order": 8, "name": "אסאדו", "has_liters": false },
+      { "sort_order": 9, "name": "שיפודי קבב", "has_liters": false },
+      { "sort_order": 10, "name": "שיפודי עוף", "has_liters": false },
+      { "sort_order": 11, "name": "חזה עוף", "has_liters": false }
+    ],
+
+    "extras": []
+  },
+
+  "print_layouts": [
+    {
+      "id": "layout-default",
+      "name": "ברירת מחדל",
+      "is_default": true,
+      "template": {
+        "showHeader": true,
+        "headerText": "בס\"ד",
+        "showOrderNumber": true,
+        "showCustomerInfo": true,
+        "showDate": true,
+        "showTime": true,
+        "showAddress": true,
+        "showNotes": true,
+        "sections": [
+          { "category": "salads", "show": true, "order": 1 },
+          { "category": "middle_courses", "show": true, "order": 2 },
+          { "category": "sides", "show": true, "order": 3 },
+          { "category": "mains", "show": true, "order": 4 },
+          { "category": "extras", "show": true, "order": 5 }
+        ],
+        "fontSize": "medium",
+        "orientation": "portrait",
+        "showUnselectedItems": false,
+        "showCategoryTitles": true
+      }
+    },
+    {
+      "id": "layout-kitchen",
+      "name": "מטבח - מקוצר",
+      "is_default": false,
+      "template": {
+        "showHeader": true,
+        "headerText": "בס\"ד",
+        "showOrderNumber": true,
+        "showCustomerInfo": false,
+        "showDate": true,
+        "showTime": true,
+        "showAddress": false,
+        "showNotes": true,
+        "sections": [
+          { "category": "salads", "show": true, "order": 1 },
+          { "category": "middle_courses", "show": true, "order": 2 },
+          { "category": "sides", "show": true, "order": 3 },
+          { "category": "mains", "show": true, "order": 4 },
+          { "category": "extras", "show": true, "order": 5 }
+        ],
+        "fontSize": "large",
+        "orientation": "portrait",
+        "showUnselectedItems": false,
+        "showCategoryTitles": true
+      }
+    }
+  ],
+
+  "settings": [
+    {
+      "key": "app_name",
+      "value": {
+        "he": "מערכת ניהול הזמנות",
+        "en": "Order Management System"
+      }
+    }
+  ]
+}
