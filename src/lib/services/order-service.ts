@@ -22,6 +22,7 @@ export interface SaveOrderInput {
     item_note?: string | null; // Free-text note for this item
     preparation_id?: string | null; // Selected preparation option
     variation_id?: string | null; // For items with variations (e.g., rice types)
+    add_on_id?: string | null; // For add-on items (e.g., רוטב לרול)
   }[];
 }
 
@@ -151,6 +152,7 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
         item_note: item.item_note || null, // Free-text note for this item
         preparation_id: item.preparation_id || null, // Selected preparation option
         variation_id: item.variation_id || null, // For items with variations (e.g., rice types)
+        add_on_id: item.add_on_id || null, // For add-on items
       }));
 
     if (orderItems.length > 0) {

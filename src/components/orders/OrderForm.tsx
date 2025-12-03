@@ -632,23 +632,25 @@ export function OrderForm() {
             }
           }
 
-          // Add add-on items
+          // Add add-on items (use parent's food_item_id and add_on_id)
           salad.addOns.forEach((addOn) => {
             // Check for simple quantity first
             if (addOn.quantity > 0) {
               items.push({
-                food_item_id: addOn.addon_id, // Add-on is a separate food item
+                food_item_id: salad.food_item_id, // Use parent's food_item_id
                 liter_size_id: null,
                 quantity: addOn.quantity,
+                add_on_id: addOn.addon_id, // Reference to the add-on
               });
             } else {
               // Check for liter-based quantities
               addOn.liters.forEach((liter) => {
                 if (liter.quantity > 0) {
                   items.push({
-                    food_item_id: addOn.addon_id, // Add-on is a separate food item
+                    food_item_id: salad.food_item_id, // Use parent's food_item_id
                     liter_size_id: liter.liter_size_id,
                     quantity: liter.quantity,
+                    add_on_id: addOn.addon_id, // Reference to the add-on
                   });
                 }
               });
