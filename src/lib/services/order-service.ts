@@ -17,7 +17,11 @@ export interface SaveOrderInput {
   items: {
     food_item_id: string;
     liter_size_id: string | null;
+    size_type?: "big" | "small" | null; // For size-based measurements (ג/ק)
     quantity: number;
+    item_note?: string | null; // Free-text note for this item
+    preparation_id?: string | null; // Selected preparation option
+    variation_id?: string | null; // For items with variations (e.g., rice types)
   }[];
 }
 
@@ -141,8 +145,12 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
         id: uuidv4(),
         order_id: orderId,
         food_item_id: item.food_item_id,
-        liter_size_id: item.liter_size_id,
+        liter_size_id: item.liter_size_id || null,
+        size_type: item.size_type || null, // For size-based measurements (ג/ק)
         quantity: item.quantity,
+        item_note: item.item_note || null, // Free-text note for this item
+        preparation_id: item.preparation_id || null, // Selected preparation option
+        variation_id: item.variation_id || null, // For items with variations (e.g., rice types)
       }));
 
     if (orderItems.length > 0) {

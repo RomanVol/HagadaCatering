@@ -19,6 +19,12 @@ import { useSupabaseData, getFoodItemsByCategoryName } from "@/hooks/useSupabase
 import { MeasurementType } from "@/types";
 
 // Types for form state
+interface AddOnFormItem {
+  addon_id: string;
+  quantity: number; // Simple quantity for add-ons
+  liters: { liter_size_id: string; quantity: number }[]; // Keep for backward compatibility
+}
+
 interface SaladFormItem {
   food_item_id: string;
   selected: boolean;
@@ -27,12 +33,34 @@ interface SaladFormItem {
   // For size measurement (Big/Small)
   size_big: number;
   size_small: number;
+  // For regular quantity (measurement_type "none")
+  regular_quantity: number;
+  // For add-ons
+  addOns: AddOnFormItem[];
+  // Free-text note for the salad
+  note: string;
 }
 
 interface RegularFormItem {
   food_item_id: string;
   selected: boolean;
   quantity: number;
+  preparation_id?: string;
+  preparation_name?: string;
+  note?: string;
+}
+
+// Sides use size-based quantities (ג/ק)
+interface SidesFormItem {
+  food_item_id: string;
+  selected: boolean;
+  size_big: number;   // ג - גדול
+  size_small: number; // ק - קטן
+  preparation_id?: string;
+  preparation_name?: string;
+  note?: string;
+  // For items with variations (like אורז)
+  variations?: { variation_id: string; size_big: number; size_small: number }[];
 }
 
 interface OrderFormState {
@@ -44,7 +72,7 @@ interface OrderFormState {
   notes: string;
   salads: SaladFormItem[];
   middle_courses: RegularFormItem[];
-  sides: RegularFormItem[];
+  sides: SidesFormItem[];
   mains: RegularFormItem[];
   extras: RegularFormItem[];
 }
@@ -127,6 +155,17 @@ export function OrderForm() {
           })),
           size_big: 0,
           size_small: 0,
+          regular_quantity: 0, // For measurement_type "none"
+          // Initialize add-ons if the item has any
+          addOns: (item.add_ons || []).map((addon) => ({
+            addon_id: addon.id,
+            quantity: 0, // Simple quantity for add-ons
+            liters: literSizes.map((ls) => ({
+              liter_size_id: ls.id,
+              quantity: 0,
+            })),
+          })),
+          note: "", // Free-text note for the salad
         })),
         middle_courses: middleItems.map((item) => ({
           food_item_id: item.id,
@@ -136,7 +175,14 @@ export function OrderForm() {
         sides: sideItems.map((item) => ({
           food_item_id: item.id,
           selected: false,
-          quantity: 0,
+          size_big: 0,
+          size_small: 0,
+          // Initialize variations if the item has any
+          variations: (item.variations || []).map((v) => ({
+            variation_id: v.id,
+            size_big: 0,
+            size_small: 0,
+          })),
         })),
         mains: mainItems.map((item) => ({
           food_item_id: item.id,
@@ -262,8 +308,84 @@ export function OrderForm() {
     }));
   };
 
+  // Handler for regular quantity changes (for salads with measurement_type "none")
+  const handleSaladRegularQuantityChange = (foodItemId: string, quantity: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      salads: prev.salads.map((s) =>
+        s.food_item_id === foodItemId
+          ? { ...s, regular_quantity: quantity, selected: quantity > 0 }
+          : s
+      ),
+    }));
+  };
+
+  // Handler for add-on liter changes (keeping for backward compatibility)
+  const handleAddOnLiterChange = (
+    foodItemId: string,
+    addonId: string,
+    literSizeId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      salads: prev.salads.map((s) =>
+        s.food_item_id === foodItemId
+          ? {
+              ...s,
+              addOns: s.addOns.map((ao) =>
+                ao.addon_id === addonId
+                  ? {
+                      ...ao,
+                      liters: ao.liters.map((l) =>
+                        l.liter_size_id === literSizeId
+                          ? { ...l, quantity }
+                          : l
+                      ),
+                    }
+                  : ao
+              ),
+            }
+          : s
+      ),
+    }));
+  };
+
+  // Handler for add-on quantity changes (simple quantity)
+  const handleAddOnQuantityChange = (
+    foodItemId: string,
+    addonId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      salads: prev.salads.map((s) =>
+        s.food_item_id === foodItemId
+          ? {
+              ...s,
+              addOns: s.addOns.map((ao) =>
+                ao.addon_id === addonId
+                  ? { ...ao, quantity }
+                  : ao
+              ),
+            }
+          : s
+      ),
+    }));
+  };
+
+  // Handler for salad note changes
+  const handleSaladNoteChange = (foodItemId: string, note: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      salads: prev.salads.map((s) =>
+        s.food_item_id === foodItemId ? { ...s, note } : s
+      ),
+    }));
+  };
+
   const handleRegularToggle = (
-    category: "middle_courses" | "sides" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras",
     foodItemId: string,
     checked: boolean
   ) => {
@@ -278,7 +400,7 @@ export function OrderForm() {
   };
 
   const handleRegularQuantityChange = (
-    category: "middle_courses" | "sides" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras",
     foodItemId: string,
     quantity: number
   ) => {
@@ -289,6 +411,138 @@ export function OrderForm() {
           ? { ...item, quantity, selected: quantity > 0 }
           : item
       ),
+    }));
+  };
+
+  const handleNoteChange = (
+    category: "middle_courses" | "mains" | "extras",
+    foodItemId: string,
+    note: string
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      [category]: prev[category].map((item) =>
+        item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
+  // Sides category uses size-based quantities (ג/ק)
+  const handleSidesToggle = (foodItemId: string, checked: boolean) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: checked, size_big: checked ? 1 : 0, size_small: 0 }
+          : item
+      ),
+    }));
+  };
+
+  const handleSidesSizeChange = (
+    foodItemId: string,
+    size: "big" | "small",
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newItem = {
+            ...item,
+            [size === "big" ? "size_big" : "size_small"]: quantity,
+          };
+          // Auto-select if any size > 0
+          newItem.selected = newItem.size_big > 0 || newItem.size_small > 0;
+          return newItem;
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleSidesPreparationChange = (
+    foodItemId: string,
+    preparationId: string | undefined,
+    preparationName: string | undefined
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, preparation_id: preparationId, preparation_name: preparationName }
+          : item
+      ),
+    }));
+  };
+
+  const handlePreparationChange = (
+    category: "middle_courses" | "mains" | "extras",
+    foodItemId: string,
+    preparationId: string | undefined,
+    preparationName: string | undefined
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      [category]: prev[category].map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, preparation_id: preparationId, preparation_name: preparationName }
+          : item
+      ),
+    }));
+  };
+
+  // Note handlers for non-salad categories
+  const handleRegularNoteChange = (
+    category: "middle_courses" | "mains" | "extras",
+    foodItemId: string,
+    note: string
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      [category]: prev[category].map((item) =>
+        item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
+  const handleSidesNoteChange = (foodItemId: string, note: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
+  // Handler for variation size changes (for items like אורז with multiple types)
+  const handleSidesVariationSizeChange = (
+    foodItemId: string,
+    variationId: string,
+    size: "big" | "small",
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const updatedVariations = (item.variations || []).map((v) =>
+            v.variation_id === variationId
+              ? { ...v, [size === "big" ? "size_big" : "size_small"]: quantity }
+              : v
+          );
+          // Check if any variation has a quantity > 0 to set selected state
+          const hasAnyVariation = updatedVariations.some(
+            (v) => v.size_big > 0 || v.size_small > 0
+          );
+          return {
+            ...item,
+            variations: updatedVariations,
+            selected: hasAnyVariation || item.size_big > 0 || item.size_small > 0,
+          };
+        }
+        return item;
+      }),
     }));
   };
 
@@ -326,25 +580,86 @@ export function OrderForm() {
       // Build order items from form state
       const items: SaveOrderInput["items"] = [];
 
-      // Add salad items (with liter sizes)
+      // Add salad items (with liter sizes or big/small quantities)
       formState.salads.forEach((salad) => {
         if (salad.selected) {
-          salad.liters.forEach((liter) => {
-            if (liter.quantity > 0) {
+          let isFirstItem = true; // Track if this is the first item for this salad (to attach the note)
+          
+          if (salad.measurement_type === "liters") {
+            // Add liter-based quantities
+            salad.liters.forEach((liter) => {
+              if (liter.quantity > 0) {
+                items.push({
+                  food_item_id: salad.food_item_id,
+                  liter_size_id: liter.liter_size_id,
+                  quantity: liter.quantity,
+                  item_note: isFirstItem && salad.note ? salad.note : null, // Attach note to first item only
+                });
+                isFirstItem = false;
+              }
+            });
+          } else if (salad.measurement_type === "size") {
+            // Add size-based quantities (Big/Small)
+            if (salad.size_big > 0) {
               items.push({
                 food_item_id: salad.food_item_id,
-                liter_size_id: liter.liter_size_id,
-                quantity: liter.quantity,
+                liter_size_id: null,
+                size_type: "big", // ג׳ - גדול
+                quantity: salad.size_big,
+                item_note: isFirstItem && salad.note ? salad.note : null,
+              });
+              isFirstItem = false;
+            }
+            if (salad.size_small > 0) {
+              items.push({
+                food_item_id: salad.food_item_id,
+                liter_size_id: null,
+                size_type: "small", // ק׳ - קטן
+                quantity: salad.size_small,
+                item_note: isFirstItem && salad.note ? salad.note : null,
+              });
+              isFirstItem = false;
+            }
+          } else if (salad.measurement_type === "none") {
+            // Add regular quantity
+            if (salad.regular_quantity > 0) {
+              items.push({
+                food_item_id: salad.food_item_id,
+                liter_size_id: null,
+                quantity: salad.regular_quantity,
+                item_note: salad.note || null,
+              });
+            }
+          }
+
+          // Add add-on items
+          salad.addOns.forEach((addOn) => {
+            // Check for simple quantity first
+            if (addOn.quantity > 0) {
+              items.push({
+                food_item_id: addOn.addon_id, // Add-on is a separate food item
+                liter_size_id: null,
+                quantity: addOn.quantity,
+              });
+            } else {
+              // Check for liter-based quantities
+              addOn.liters.forEach((liter) => {
+                if (liter.quantity > 0) {
+                  items.push({
+                    food_item_id: addOn.addon_id, // Add-on is a separate food item
+                    liter_size_id: liter.liter_size_id,
+                    quantity: liter.quantity,
+                  });
+                }
               });
             }
           });
         }
       });
 
-      // Add regular items (middle courses, sides, mains, extras)
+      // Add regular items (middle courses, mains, extras)
       const regularCategories = [
         { key: "middle_courses" as const, data: formState.middle_courses },
-        { key: "sides" as const, data: formState.sides },
         { key: "mains" as const, data: formState.mains },
         { key: "extras" as const, data: formState.extras },
       ];
@@ -356,9 +671,72 @@ export function OrderForm() {
               food_item_id: item.food_item_id,
               liter_size_id: null,
               quantity: item.quantity,
+              preparation_id: item.preparation_id || null,
+              item_note: item.note || null,
             });
           }
         });
+      });
+
+      // Add sides items (using size-based quantities ג/ק or variations)
+      formState.sides.forEach((item) => {
+        if (item.selected) {
+          let isFirstItem = true;
+          
+          // Check if item has variations (like אורז)
+          if (item.variations && item.variations.length > 0) {
+            // Add each variation with its quantities
+            item.variations.forEach((variation) => {
+              if (variation.size_big > 0) {
+                items.push({
+                  food_item_id: item.food_item_id,
+                  liter_size_id: null,
+                  size_type: "big", // ג׳ - גדול
+                  quantity: variation.size_big,
+                  variation_id: variation.variation_id,
+                  preparation_id: item.preparation_id || null,
+                  item_note: isFirstItem && item.note ? item.note : null,
+                });
+                isFirstItem = false;
+              }
+              if (variation.size_small > 0) {
+                items.push({
+                  food_item_id: item.food_item_id,
+                  liter_size_id: null,
+                  size_type: "small", // ק׳ - קטן
+                  quantity: variation.size_small,
+                  variation_id: variation.variation_id,
+                  preparation_id: item.preparation_id || null,
+                  item_note: isFirstItem && item.note ? item.note : null,
+                });
+                isFirstItem = false;
+              }
+            });
+          } else {
+            // Regular size-based items (no variations)
+            if (item.size_big > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "big", // ג׳ - גדול
+                quantity: item.size_big,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+              isFirstItem = false;
+            }
+            if (item.size_small > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "small", // ק׳ - קטן
+                quantity: item.size_small,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+            }
+          }
+        }
       });
 
       // Save order
@@ -575,6 +953,9 @@ export function OrderForm() {
                         big: saladState?.size_big || 0,
                         small: saladState?.size_small || 0,
                       }}
+                      regularQuantity={saladState?.regular_quantity || 0}
+                      addOns={saladState?.addOns || []}
+                      note={saladState?.note || ""}
                       literSizes={literSizes}
                       measurementType={measurementType}
                       onSelect={() => {
@@ -604,6 +985,9 @@ export function OrderForm() {
                       big: expandedState?.size_big || 0,
                       small: expandedState?.size_small || 0,
                     }}
+                    regularQuantity={expandedState?.regular_quantity || 0}
+                    addOns={expandedState?.addOns || []}
+                    note={expandedState?.note || ""}
                     literSizes={literSizes}
                     measurementType={measurementType}
                     onLiterChange={(literId, qty) =>
@@ -611,6 +995,18 @@ export function OrderForm() {
                     }
                     onSizeChange={(size, qty) =>
                       handleSaladSizeChange(expandedSaladId, size, qty)
+                    }
+                    onRegularQuantityChange={(qty) =>
+                      handleSaladRegularQuantityChange(expandedSaladId, qty)
+                    }
+                    onAddOnLiterChange={(addonId, literId, qty) =>
+                      handleAddOnLiterChange(expandedSaladId, addonId, literId, qty)
+                    }
+                    onAddOnQuantityChange={(addonId, qty) =>
+                      handleAddOnQuantityChange(expandedSaladId, addonId, qty)
+                    }
+                    onNoteChange={(note) =>
+                      handleSaladNoteChange(expandedSaladId, note)
                     }
                     onClose={() => setExpandedSaladId(null)}
                   />
@@ -652,27 +1048,47 @@ export function OrderForm() {
                       item={item}
                       selected={itemState?.selected || false}
                       quantity={itemState?.quantity || 0}
-                      onSelect={() => setExpandedMiddleId(expandedMiddleId === item.id ? null : item.id)}
+                      preparationName={itemState?.preparation_name}
+                      note={itemState?.note}
+                      onSelect={() => {
+                        // Select the item if not already selected
+                        if (!itemState?.selected) {
+                          handleRegularToggle("middle_courses", item.id, true);
+                        }
+                        setExpandedMiddleId(item.id);
+                      }}
                     />
                   );
                 })}
               </div>
               
               {/* Popup for selected item */}
-              {expandedMiddleId && (
-                <FoodItemPopup
-                  item={middleItems.find((i) => i.id === expandedMiddleId)!}
-                  quantity={
-                    formState.middle_courses.find(
-                      (m) => m.food_item_id === expandedMiddleId
-                    )?.quantity || 0
-                  }
-                  onQuantityChange={(qty) =>
-                    handleRegularQuantityChange("middle_courses", expandedMiddleId, qty)
-                  }
-                  onClose={() => setExpandedMiddleId(null)}
-                />
-              )}
+              {expandedMiddleId && (() => {
+                const expandedItem = middleItems.find((i) => i.id === expandedMiddleId);
+                const expandedState = formState.middle_courses.find(
+                  (m) => m.food_item_id === expandedMiddleId
+                );
+                if (!expandedItem) return null;
+                
+                return (
+                  <FoodItemPopup
+                    item={expandedItem}
+                    quantity={expandedState?.quantity || 0}
+                    selectedPreparationId={expandedState?.preparation_id}
+                    note={expandedState?.note}
+                    onQuantityChange={(qty) =>
+                      handleRegularQuantityChange("middle_courses", expandedMiddleId, qty)
+                    }
+                    onPreparationChange={(prepId, prepName) =>
+                      handlePreparationChange("middle_courses", expandedMiddleId, prepId, prepName)
+                    }
+                    onNoteChange={(note) =>
+                      handleRegularNoteChange("middle_courses", expandedMiddleId, note)
+                    }
+                    onClose={() => setExpandedMiddleId(null)}
+                  />
+                );
+              })()}
             </AccordionContent>
           </AccordionItem>
 
@@ -703,33 +1119,72 @@ export function OrderForm() {
                   const itemState = formState.sides.find(
                     (s) => s.food_item_id === item.id
                   );
+                  const hasVariations = item.variations && item.variations.length > 0;
                   return (
                     <FoodItemCard
                       key={item.id}
                       item={item}
                       selected={itemState?.selected || false}
-                      quantity={itemState?.quantity || 0}
-                      onSelect={() => setExpandedSideId(expandedSideId === item.id ? null : item.id)}
+                      quantity={0}
+                      sizeQuantity={{
+                        big: itemState?.size_big || 0,
+                        small: itemState?.size_small || 0,
+                      }}
+                      useSizeMode={!hasVariations}
+                      preparationName={itemState?.preparation_name}
+                      note={itemState?.note}
+                      variationQuantities={itemState?.variations}
+                      onSelect={() => {
+                        // Select the item if not already selected
+                        if (!itemState?.selected) {
+                          handleSidesToggle(item.id, true);
+                        }
+                        setExpandedSideId(item.id);
+                      }}
                     />
                   );
                 })}
               </div>
               
               {/* Popup for selected item */}
-              {expandedSideId && (
-                <FoodItemPopup
-                  item={sideItems.find((i) => i.id === expandedSideId)!}
-                  quantity={
-                    formState.sides.find(
-                      (s) => s.food_item_id === expandedSideId
-                    )?.quantity || 0
-                  }
-                  onQuantityChange={(qty) =>
-                    handleRegularQuantityChange("sides", expandedSideId, qty)
-                  }
-                  onClose={() => setExpandedSideId(null)}
-                />
-              )}
+              {expandedSideId && (() => {
+                const expandedItem = sideItems.find((i) => i.id === expandedSideId);
+                const expandedState = formState.sides.find(
+                  (s) => s.food_item_id === expandedSideId
+                );
+                if (!expandedItem) return null;
+                
+                const hasVariations = expandedItem.variations && expandedItem.variations.length > 0;
+                
+                return (
+                  <FoodItemPopup
+                    item={expandedItem}
+                    quantity={0}
+                    sizeQuantity={{
+                      big: expandedState?.size_big || 0,
+                      small: expandedState?.size_small || 0,
+                    }}
+                    useSizeMode={!hasVariations}
+                    selectedPreparationId={expandedState?.preparation_id}
+                    note={expandedState?.note}
+                    variationQuantities={expandedState?.variations}
+                    onQuantityChange={() => {}}
+                    onSizeChange={(size, qty) =>
+                      handleSidesSizeChange(expandedSideId, size, qty)
+                    }
+                    onPreparationChange={(prepId, prepName) =>
+                      handleSidesPreparationChange(expandedSideId, prepId, prepName)
+                    }
+                    onNoteChange={(note) =>
+                      handleSidesNoteChange(expandedSideId, note)
+                    }
+                    onVariationSizeChange={(variationId, size, qty) =>
+                      handleSidesVariationSizeChange(expandedSideId, variationId, size, qty)
+                    }
+                    onClose={() => setExpandedSideId(null)}
+                  />
+                );
+              })()}
             </AccordionContent>
           </AccordionItem>
 
@@ -766,27 +1221,47 @@ export function OrderForm() {
                       item={item}
                       selected={itemState?.selected || false}
                       quantity={itemState?.quantity || 0}
-                      onSelect={() => setExpandedMainId(expandedMainId === item.id ? null : item.id)}
+                      preparationName={itemState?.preparation_name}
+                      note={itemState?.note}
+                      onSelect={() => {
+                        // Select the item if not already selected
+                        if (!itemState?.selected) {
+                          handleRegularToggle("mains", item.id, true);
+                        }
+                        setExpandedMainId(item.id);
+                      }}
                     />
                   );
                 })}
               </div>
               
               {/* Popup for selected item */}
-              {expandedMainId && (
-                <FoodItemPopup
-                  item={mainItems.find((i) => i.id === expandedMainId)!}
-                  quantity={
-                    formState.mains.find(
-                      (m) => m.food_item_id === expandedMainId
-                    )?.quantity || 0
-                  }
-                  onQuantityChange={(qty) =>
-                    handleRegularQuantityChange("mains", expandedMainId, qty)
-                  }
-                  onClose={() => setExpandedMainId(null)}
-                />
-              )}
+              {expandedMainId && (() => {
+                const expandedItem = mainItems.find((i) => i.id === expandedMainId);
+                const expandedState = formState.mains.find(
+                  (m) => m.food_item_id === expandedMainId
+                );
+                if (!expandedItem) return null;
+                
+                return (
+                  <FoodItemPopup
+                    item={expandedItem}
+                    quantity={expandedState?.quantity || 0}
+                    selectedPreparationId={expandedState?.preparation_id}
+                    note={expandedState?.note}
+                    onQuantityChange={(qty) =>
+                      handleRegularQuantityChange("mains", expandedMainId, qty)
+                    }
+                    onPreparationChange={(prepId, prepName) =>
+                      handlePreparationChange("mains", expandedMainId, prepId, prepName)
+                    }
+                    onNoteChange={(note) =>
+                      handleNoteChange("mains", expandedMainId, note)
+                    }
+                    onClose={() => setExpandedMainId(null)}
+                  />
+                );
+              })()}
             </AccordionContent>
           </AccordionItem>
 
@@ -824,27 +1299,47 @@ export function OrderForm() {
                           item={item}
                           selected={itemState?.selected || false}
                           quantity={itemState?.quantity || 0}
-                          onSelect={() => setExpandedExtraId(expandedExtraId === item.id ? null : item.id)}
+                          preparationName={itemState?.preparation_name}
+                          note={itemState?.note}
+                          onSelect={() => {
+                            // Select the item if not already selected
+                            if (!itemState?.selected) {
+                              handleRegularToggle("extras", item.id, true);
+                            }
+                            setExpandedExtraId(item.id);
+                          }}
                         />
                       );
                     })}
                   </div>
                   
                   {/* Popup for selected item */}
-                  {expandedExtraId && (
-                    <FoodItemPopup
-                      item={extraItems.find((i) => i.id === expandedExtraId)!}
-                      quantity={
-                        formState.extras.find(
-                          (e) => e.food_item_id === expandedExtraId
-                        )?.quantity || 0
-                      }
-                      onQuantityChange={(qty) =>
-                        handleRegularQuantityChange("extras", expandedExtraId, qty)
-                      }
-                      onClose={() => setExpandedExtraId(null)}
-                    />
-                  )}
+                  {expandedExtraId && (() => {
+                    const expandedItem = extraItems.find((i) => i.id === expandedExtraId);
+                    const expandedState = formState.extras.find(
+                      (e) => e.food_item_id === expandedExtraId
+                    );
+                    if (!expandedItem) return null;
+                    
+                    return (
+                      <FoodItemPopup
+                        item={expandedItem}
+                        quantity={expandedState?.quantity || 0}
+                        selectedPreparationId={expandedState?.preparation_id}
+                        note={expandedState?.note}
+                        onQuantityChange={(qty) =>
+                          handleRegularQuantityChange("extras", expandedExtraId, qty)
+                        }
+                        onPreparationChange={(prepId, prepName) =>
+                          handlePreparationChange("extras", expandedExtraId, prepId, prepName)
+                        }
+                        onNoteChange={(note) =>
+                          handleNoteChange("extras", expandedExtraId, note)
+                        }
+                        onClose={() => setExpandedExtraId(null)}
+                      />
+                    );
+                  })()}
                 </>
               ) : (
                 <p className="text-gray-500 text-center py-4">

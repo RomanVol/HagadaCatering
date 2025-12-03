@@ -30,6 +30,43 @@ export interface FoodItem {
   is_active: boolean;
   sort_order: number;
   created_at: string;
+  // Portion size information for display
+  portion_multiplier?: number | null; // e.g., 2 for חצי שניצל, 3 for קציצות, 100 for 100g
+  portion_unit?: string | null; // e.g., 'חצאים', 'קציצות', 'גרם', 'ק״ג'
+  // Add-ons that appear when this item is selected
+  add_ons?: FoodItemAddOn[];
+  // Preparation options for this item (e.g., עשבי תיבול, ברוטב מזרחי)
+  preparations?: FoodItemPreparation[];
+  // Variations of this item (e.g., אורז לבן, אורז ירוק, אורז אדום)
+  variations?: FoodItemVariation[];
+}
+
+// Add-on item that appears conditionally when parent item is selected
+export interface FoodItemAddOn {
+  id: string;
+  parent_food_item_id: string;
+  name: string;
+  measurement_type: MeasurementType;
+  sort_order: number;
+  is_active: boolean;
+}
+
+// Preparation option for food items (e.g., different cooking styles)
+export interface FoodItemPreparation {
+  id: string;
+  parent_food_item_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+// Variation of food items (e.g., אורז לבן, אורז אדום, אורז ירוק)
+export interface FoodItemVariation {
+  id: string;
+  parent_food_item_id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
 }
 
 // Customer type (unique by phone)
@@ -68,7 +105,11 @@ export interface OrderItem {
   order_id: string;
   food_item_id: string;
   liter_size_id: string | null;
+  size_type: "big" | "small" | null; // For size-based measurements (ג/ק)
+  preparation_id: string | null; // Selected preparation option
+  variation_id: string | null; // For items with variations (e.g., rice types)
   quantity: number;
+  item_note: string | null; // Free-text note for this item
   created_at: string;
 }
 

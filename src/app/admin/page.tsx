@@ -13,9 +13,10 @@ import {
   RotateCcw,
   AlertCircle,
   Check,
+  ChefHat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Category, FoodItem, MeasurementType } from "@/types";
+import { Category, FoodItem, FoodItemPreparation, MeasurementType } from "@/types";
 import {
   getCategories,
   getFoodItems,
@@ -24,6 +25,10 @@ import {
   deleteFoodItem,
   restoreFoodItem,
   permanentlyDeleteFoodItem,
+  getPreparations,
+  createPreparation,
+  updatePreparation,
+  deletePreparation,
 } from "@/lib/services/admin-service";
 
 // Hebrew labels
@@ -51,6 +56,12 @@ const LABELS = {
   inactive: "לא פעיל",
   showInactive: "הצג פריטים לא פעילים",
   hideInactive: "הסתר פריטים לא פעילים",
+  // Preparations
+  preparations: "אפשרויות הכנה",
+  addPreparation: "הוסף אפשרות",
+  noPreparations: "אין אפשרויות הכנה",
+  preparationName: "שם האפשרות",
+  managePreparations: "ניהול אפשרויות הכנה",
 };
 
 // Measurement type options
@@ -82,10 +93,20 @@ export default function AdminPage() {
   const [editingItemId, setEditingItemId] = React.useState<string | null>(null);
   const [editingName, setEditingName] = React.useState("");
   const [editingMeasurementType, setEditingMeasurementType] = React.useState<MeasurementType>("none");
+  const [editingPortionMultiplier, setEditingPortionMultiplier] = React.useState<string>("");
+  const [editingPortionUnit, setEditingPortionUnit] = React.useState<string>("");
 
   // Error/success state
   const [error, setError] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
+
+  // Preparations state
+  const [preparationsModalItem, setPreparationsModalItem] = React.useState<FoodItem | null>(null);
+  const [preparations, setPreparations] = React.useState<FoodItemPreparation[]>([]);
+  const [isLoadingPreparations, setIsLoadingPreparations] = React.useState(false);
+  const [newPreparationName, setNewPreparationName] = React.useState("");
+  const [editingPrepId, setEditingPrepId] = React.useState<string | null>(null);
+  const [editingPrepName, setEditingPrepName] = React.useState("");
 
   // Load categories on mount
   React.useEffect(() => {
@@ -169,16 +190,24 @@ export default function AdminPage() {
     setIsSaving(true);
     setError(null);
 
+    const portionMultiplier = editingPortionMultiplier.trim() 
+      ? parseFloat(editingPortionMultiplier) 
+      : null;
+
     const result = await updateFoodItem({
       id: itemId,
       name: editingName.trim(),
       measurement_type: editingMeasurementType,
+      portion_multiplier: portionMultiplier,
+      portion_unit: editingPortionUnit.trim() || null,
     });
 
     setIsSaving(false);
 
     if (result.success) {
       setEditingItemId(null);
+      setEditingPortionMultiplier("");
+      setEditingPortionUnit("");
       setSuccessMessage("הפריט עודכן בהצלחה");
       if (selectedCategoryId) {
         loadFoodItems(selectedCategoryId);
@@ -238,12 +267,92 @@ export default function AdminPage() {
     setEditingItemId(item.id);
     setEditingName(item.name);
     setEditingMeasurementType(item.measurement_type || "none");
+    setEditingPortionMultiplier(item.portion_multiplier?.toString() || "");
+    setEditingPortionUnit(item.portion_unit || "");
   };
 
   const cancelEditing = () => {
     setEditingItemId(null);
     setEditingName("");
     setEditingMeasurementType("none");
+    setEditingPortionMultiplier("");
+    setEditingPortionUnit("");
+  };
+
+  // Preparations handlers
+  const openPreparationsModal = async (item: FoodItem) => {
+    setPreparationsModalItem(item);
+    setIsLoadingPreparations(true);
+    const preps = await getPreparations(item.id);
+    setPreparations(preps);
+    setIsLoadingPreparations(false);
+  };
+
+  const closePreparationsModal = () => {
+    setPreparationsModalItem(null);
+    setPreparations([]);
+    setNewPreparationName("");
+    setEditingPrepId(null);
+    setEditingPrepName("");
+  };
+
+  const handleAddPreparation = async () => {
+    if (!newPreparationName.trim() || !preparationsModalItem) return;
+
+    setIsSaving(true);
+    const result = await createPreparation({
+      parent_food_item_id: preparationsModalItem.id,
+      name: newPreparationName.trim(),
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setNewPreparationName("");
+      setSuccessMessage(`אפשרות "${newPreparationName}" נוספה בהצלחה`);
+      const preps = await getPreparations(preparationsModalItem.id);
+      setPreparations(preps);
+    } else {
+      setError(result.error || "שגיאה בהוספת האפשרות");
+    }
+  };
+
+  const handleUpdatePreparation = async (prepId: string) => {
+    if (!editingPrepName.trim()) return;
+
+    setIsSaving(true);
+    const result = await updatePreparation({
+      id: prepId,
+      name: editingPrepName.trim(),
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setEditingPrepId(null);
+      setEditingPrepName("");
+      setSuccessMessage("האפשרות עודכנה בהצלחה");
+      if (preparationsModalItem) {
+        const preps = await getPreparations(preparationsModalItem.id);
+        setPreparations(preps);
+      }
+    } else {
+      setError(result.error || "שגיאה בעדכון האפשרות");
+    }
+  };
+
+  const handleDeletePreparation = async (prep: FoodItemPreparation) => {
+    if (!confirm(`האם למחוק את "${prep.name}"?`)) return;
+
+    const result = await deletePreparation(prep.id);
+
+    if (result.success) {
+      setSuccessMessage(`האפשרות "${prep.name}" נמחקה`);
+      if (preparationsModalItem) {
+        const preps = await getPreparations(preparationsModalItem.id);
+        setPreparations(preps);
+      }
+    } else {
+      setError(result.error || "שגיאה במחיקת האפשרות");
+    }
   };
 
   // Filter items based on showInactive
@@ -258,6 +367,12 @@ export default function AdminPage() {
   const isSaladsCategory = React.useMemo(() => {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
     return selectedCategory?.name_en === "salads";
+  }, [categories, selectedCategoryId]);
+
+  // Check if selected category is mains (for portion size editing)
+  const isMainsCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "mains";
   }, [categories, selectedCategoryId]);
 
   // Get measurement type label
@@ -487,6 +602,30 @@ export default function AdminPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* Portion size fields for mains category */}
+                        {isMainsCategory && (
+                          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                            <span className="text-sm text-green-700 font-medium">גודל מנה:</span>
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              placeholder="מכפיל"
+                              value={editingPortionMultiplier}
+                              onChange={(e) => setEditingPortionMultiplier(e.target.value)}
+                              className="w-20 h-8 px-2 text-sm rounded border border-green-300 focus:border-green-500 focus:ring-1 focus:ring-green-200"
+                            />
+                            <span className="text-sm text-green-600">×</span>
+                            <input
+                              type="text"
+                              placeholder="יחידה (גרם, קציצות...)"
+                              value={editingPortionUnit}
+                              onChange={(e) => setEditingPortionUnit(e.target.value)}
+                              className="flex-1 h-8 px-2 text-sm rounded border border-green-300 focus:border-green-500 focus:ring-1 focus:ring-green-200"
+                            />
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -494,6 +633,12 @@ export default function AdminPage() {
                         {isSaladsCategory && (
                           <span className="mr-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                             {getMeasurementLabel(item.measurement_type)}
+                          </span>
+                        )}
+                        {/* Show portion info for mains */}
+                        {isMainsCategory && item.portion_multiplier && item.portion_unit && (
+                          <span className="mr-2 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                            × {item.portion_multiplier} {item.portion_unit}
                           </span>
                         )}
                         {!item.is_active && (
@@ -529,6 +674,17 @@ export default function AdminPage() {
                       </>
                     ) : (
                       <>
+                        {/* Preparations button - only for non-salad categories */}
+                        {!isSaladsCategory && item.is_active && (
+                          <button
+                            onClick={() => openPreparationsModal(item)}
+                            className="w-10 h-10 flex items-center justify-center rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors"
+                            title={LABELS.managePreparations}
+                          >
+                            <ChefHat className="w-5 h-5" />
+                          </button>
+                        )}
+
                         <button
                           onClick={() => startEditing(item)}
                           className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
@@ -572,6 +728,175 @@ export default function AdminPage() {
           )}
         </div>
       </main>
+
+      {/* Preparations Modal */}
+      {preparationsModalItem && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={closePreparationsModal}
+          />
+          
+          {/* Modal */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[80vh] overflow-hidden">
+            <div className="max-w-lg mx-auto p-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{LABELS.preparations}</h3>
+                  <p className="text-sm text-gray-500">{preparationsModalItem.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closePreparationsModal}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Add New Preparation */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={newPreparationName}
+                  onChange={(e) => setNewPreparationName(e.target.value)}
+                  placeholder={LABELS.preparationName}
+                  className="flex-1 h-12 px-4 rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newPreparationName.trim()) {
+                      handleAddPreparation();
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleAddPreparation}
+                  disabled={!newPreparationName.trim() || isSaving}
+                  className="h-12 px-4 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Plus className="w-5 h-5" />
+                  )}
+                  <span>{LABELS.addPreparation}</span>
+                </button>
+              </div>
+
+              {/* Preparations List */}
+              <div className="max-h-[40vh] overflow-y-auto">
+                {isLoadingPreparations ? (
+                  <div className="py-8 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-purple-500" />
+                  </div>
+                ) : preparations.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500">
+                    {LABELS.noPreparations}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {preparations.map((prep, index) => (
+                      <div
+                        key={prep.id}
+                        className={cn(
+                          "p-3 rounded-lg border flex items-center gap-3",
+                          prep.is_active
+                            ? "bg-white border-gray-200"
+                            : "bg-gray-50 border-gray-100 opacity-60"
+                        )}
+                      >
+                        {/* Sort Number */}
+                        <span className="w-6 h-6 flex items-center justify-center bg-purple-100 rounded-full text-xs font-medium text-purple-600">
+                          {index + 1}
+                        </span>
+
+                        {/* Name */}
+                        <div className="flex-1">
+                          {editingPrepId === prep.id ? (
+                            <input
+                              type="text"
+                              value={editingPrepName}
+                              onChange={(e) => setEditingPrepName(e.target.value)}
+                              className="w-full h-8 px-2 rounded border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && editingPrepName.trim()) {
+                                  handleUpdatePreparation(prep.id);
+                                } else if (e.key === "Escape") {
+                                  setEditingPrepId(null);
+                                  setEditingPrepName("");
+                                }
+                              }}
+                            />
+                          ) : (
+                            <span className="font-medium text-gray-900">{prep.name}</span>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1">
+                          {editingPrepId === prep.id ? (
+                            <>
+                              <button
+                                onClick={() => handleUpdatePreparation(prep.id)}
+                                disabled={!editingPrepName.trim() || isSaving}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors disabled:opacity-50"
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingPrepId(null);
+                                  setEditingPrepName("");
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingPrepId(prep.id);
+                                  setEditingPrepName(prep.name);
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeletePreparation(prep)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={closePreparationsModal}
+                className="w-full h-12 mt-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
+              >
+                {LABELS.cancel}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

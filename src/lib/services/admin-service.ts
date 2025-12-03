@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { FoodItem, Category, MeasurementType } from "@/types";
+import { FoodItem, Category, MeasurementType, FoodItemPreparation } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
 export interface CreateFoodItemInput {
@@ -14,6 +14,8 @@ export interface UpdateFoodItemInput {
   measurement_type?: MeasurementType;
   is_active?: boolean;
   sort_order?: number;
+  portion_multiplier?: number | null;
+  portion_unit?: string | null;
 }
 
 /**
@@ -125,6 +127,8 @@ export async function updateFoodItem(
   }
   if (input.is_active !== undefined) updates.is_active = input.is_active;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+  if (input.portion_multiplier !== undefined) updates.portion_multiplier = input.portion_multiplier;
+  if (input.portion_unit !== undefined) updates.portion_unit = input.portion_unit;
 
   const { error } = await supabase
     .from("food_items")
@@ -211,6 +215,152 @@ export async function restoreFoodItem(
 
   if (error) {
     console.error("Error restoring food item:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// ========== Preparation Management ==========
+
+export interface CreatePreparationInput {
+  parent_food_item_id: string;
+  name: string;
+}
+
+export interface UpdatePreparationInput {
+  id: string;
+  name?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+/**
+ * Get preparations for a food item
+ */
+export async function getPreparations(foodItemId: string): Promise<FoodItemPreparation[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("food_item_preparations")
+    .select("*")
+    .eq("parent_food_item_id", foodItemId)
+    .order("sort_order");
+
+  if (error) {
+    console.error("Error fetching preparations:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Create a new preparation option
+ */
+export async function createPreparation(
+  input: CreatePreparationInput
+): Promise<{ success: boolean; preparation?: FoodItemPreparation; error?: string }> {
+  const supabase = createClient();
+
+  // Get the max sort_order for the food item
+  const { data: existingPreps } = await supabase
+    .from("food_item_preparations")
+    .select("sort_order")
+    .eq("parent_food_item_id", input.parent_food_item_id)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const nextSortOrder = existingPreps && existingPreps.length > 0 
+    ? existingPreps[0].sort_order + 1 
+    : 1;
+
+  const newPrep = {
+    id: uuidv4(),
+    parent_food_item_id: input.parent_food_item_id,
+    name: input.name,
+    is_active: true,
+    sort_order: nextSortOrder,
+  };
+
+  const { data, error } = await supabase
+    .from("food_item_preparations")
+    .insert(newPrep)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating preparation:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, preparation: data };
+}
+
+/**
+ * Update a preparation option
+ */
+export async function updatePreparation(
+  input: UpdatePreparationInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const updates: Record<string, unknown> = {};
+  
+  if (input.name !== undefined) updates.name = input.name;
+  if (input.is_active !== undefined) updates.is_active = input.is_active;
+  if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+
+  const { error } = await supabase
+    .from("food_item_preparations")
+    .update(updates)
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("Error updating preparation:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Delete a preparation option
+ */
+export async function deletePreparation(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Soft delete - set is_active to false
+  const { error } = await supabase
+    .from("food_item_preparations")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error deleting preparation:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Permanently delete a preparation option
+ */
+export async function permanentlyDeletePreparation(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("food_item_preparations")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error permanently deleting preparation:", error);
     return { success: false, error: error.message };
   }
 
