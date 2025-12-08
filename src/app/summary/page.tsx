@@ -13,6 +13,7 @@ import {
   User,
   Package,
   Printer,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -82,10 +83,13 @@ export default function SummaryPage() {
     setHasSearched(true);
 
     try {
+      console.log("Fetching orders from", fromDate, "to", toDate);
       const [ordersData, summaryData] = await Promise.all([
         getOrdersByDateRange(fromDate, toDate),
         getOrdersSummary(fromDate, toDate),
       ]);
+      console.log("Orders fetched:", ordersData.length, "orders");
+      console.log("Summary fetched:", summaryData);
       setOrders(ordersData);
       setSummary(summaryData);
     } catch (error) {
@@ -408,6 +412,20 @@ export default function SummaryPage() {
                         אין פריטים בהזמנה
                       </p>
                     )}
+
+                    {/* Edit Button */}
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/edit-order/${order.id}`);
+                        }}
+                        className="w-full h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        <span>ערוך הזמנה</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -526,19 +544,28 @@ export default function SummaryPage() {
                     </h3>
                   </div>
                   <div className="divide-y divide-gray-100">
-                    {category.items.map((item) => (
-                      <div key={item.food_item_id} className="p-4">
+                    {category.items.map((item, itemIndex) => (
+                      <div key={`${item.food_item_id}_${item.is_add_on ? 'addon' : item.is_variation ? 'var' : 'main'}_${itemIndex}`} className="p-4">
                         <div className="flex items-start justify-between">
-                          <span className="font-medium text-gray-800">
+                          <span className={cn(
+                            "font-medium",
+                            item.is_add_on ? "text-purple-700" : item.is_variation ? "text-blue-700" : "text-gray-800"
+                          )}>
                             {item.food_name}
                           </span>
-                          {!item.has_liters && (
+                          {/* Show total quantity only if no liters and no sizes */}
+                          {!item.has_liters && 
+                           (!item.liter_quantities || item.liter_quantities.length === 0) &&
+                           (!item.size_quantities || item.size_quantities.length === 0) &&
+                           item.total_quantity && item.total_quantity > 0 && (
                             <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
                               {item.total_quantity}
                             </span>
                           )}
                         </div>
-                        {item.has_liters && item.liter_quantities && (
+                        
+                        {/* Liter quantities */}
+                        {item.liter_quantities && item.liter_quantities.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
                             {item.liter_quantities
                               .sort((a, b) => a.liter_size - b.liter_size)
@@ -550,6 +577,24 @@ export default function SummaryPage() {
                                   <span className="font-bold">{lq.liter_label}</span>
                                   <span className="mx-1">×</span>
                                   <span className="font-bold">{lq.total_quantity}</span>
+                                </span>
+                              ))}
+                          </div>
+                        )}
+                        
+                        {/* Size quantities (ג/ק) */}
+                        {item.size_quantities && item.size_quantities.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {item.size_quantities
+                              .sort((a, b) => (a.size_type === "big" ? -1 : 1))
+                              .map((sq) => (
+                                <span
+                                  key={sq.size_type}
+                                  className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm"
+                                >
+                                  <span className="font-bold">{sq.size_label}</span>
+                                  <span className="mx-1">×</span>
+                                  <span className="font-bold">{sq.total_quantity}</span>
                                 </span>
                               ))}
                           </div>

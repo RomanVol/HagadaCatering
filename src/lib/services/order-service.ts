@@ -365,8 +365,20 @@ export interface SummaryItem {
     liter_size: number;
     total_quantity: number;
   }[];
+  // For items with size_type (ג/ק)
+  size_quantities?: {
+    size_type: "big" | "small";
+    size_label: string;
+    total_quantity: number;
+  }[];
   // For regular items
   total_quantity?: number;
+  // Is this an add-on item?
+  is_add_on?: boolean;
+  parent_food_name?: string;
+  // Is this a variation item?
+  is_variation?: boolean;
+  variation_name?: string;
 }
 
 export interface CategorySummary {
@@ -377,6 +389,7 @@ export interface CategorySummary {
 
 /**
  * Get aggregated summary for date range
+ * Includes: liter quantities, size quantities (ג/ק), add-ons separately, and variations separately
  */
 export async function getOrdersSummary(
   fromDate: string,
@@ -385,17 +398,21 @@ export async function getOrdersSummary(
   const supabase = createClient();
 
   // Get categories
-  const { data: categories } = await supabase
+  const { data: categories, error: catError } = await supabase
     .from("categories")
     .select("*")
     .order("sort_order");
 
+  console.log("Categories:", categories?.length, "error:", catError);
+
   // Get all order items in date range with joins
-  const { data: orders } = await supabase
+  const { data: orders, error: ordersError } = await supabase
     .from("orders")
     .select("id")
     .gte("order_date", fromDate)
     .lte("order_date", toDate);
+
+  console.log("Orders in range:", orders?.length, "error:", ordersError);
 
   if (!orders || orders.length === 0) {
     return [];
@@ -403,7 +420,7 @@ export async function getOrdersSummary(
 
   const orderIds = orders.map((o) => o.id);
 
-  const { data: items } = await supabase
+  const { data: items, error: itemsError } = await supabase
     .from("order_items")
     .select(`
       *,
@@ -411,6 +428,40 @@ export async function getOrdersSummary(
       liter_size:liter_sizes(id, label, size)
     `)
     .in("order_id", orderIds);
+
+  console.log("Order items:", items?.length, "error:", itemsError);
+
+  // Get add-on names separately if there are items with add_on_id
+  const itemsWithAddOns = items?.filter(i => i.add_on_id) || [];
+  let addOnsMap = new Map<string, string>();
+  
+  if (itemsWithAddOns.length > 0) {
+    const addOnIds = [...new Set(itemsWithAddOns.map(i => i.add_on_id))];
+    const { data: addOns } = await supabase
+      .from("food_item_add_ons")
+      .select("id, name")
+      .in("id", addOnIds);
+    
+    if (addOns) {
+      addOns.forEach(ao => addOnsMap.set(ao.id, ao.name));
+    }
+  }
+
+  // Get variation names separately if there are items with variation_id
+  const itemsWithVariations = items?.filter(i => i.variation_id) || [];
+  let variationsMap = new Map<string, string>();
+  
+  if (itemsWithVariations.length > 0) {
+    const variationIds = [...new Set(itemsWithVariations.map(i => i.variation_id))];
+    const { data: variations } = await supabase
+      .from("food_item_variations")
+      .select("id, name")
+      .in("id", variationIds);
+    
+    if (variations) {
+      variations.forEach(v => variationsMap.set(v.id, v.name));
+    }
+  }
 
   if (!items || !categories) {
     return [];
@@ -431,24 +482,52 @@ export async function getOrdersSummary(
     }
 
     const categoryItems = summaryMap.get(categoryId)!;
-    const foodItemId = item.food_item_id;
+    
+    // Check if this is an add-on item
+    const addOnName = item.add_on_id ? addOnsMap.get(item.add_on_id) : null;
+    const isAddOn = !!item.add_on_id && !!addOnName;
+    
+    // Check if this is a variation item
+    const variationName = item.variation_id ? variationsMap.get(item.variation_id) : null;
+    const isVariation = !!item.variation_id && !!variationName;
+    
+    // Create unique key: include add_on_id and variation_id for uniqueness
+    let itemKey = item.food_item_id;
+    if (isAddOn) {
+      itemKey = `${item.food_item_id}_addon_${item.add_on_id}`;
+    } else if (isVariation) {
+      itemKey = `${item.food_item_id}_variation_${item.variation_id}`;
+    }
+    
+    // Build display name
+    let displayName = item.food_item.name;
+    if (isAddOn) {
+      displayName = `${addOnName} (תוספת ל${item.food_item.name})`;
+    } else if (isVariation) {
+      displayName = `${item.food_item.name} - ${variationName}`;
+    }
 
-    if (!categoryItems.has(foodItemId)) {
-      categoryItems.set(foodItemId, {
-        food_item_id: foodItemId,
-        food_name: item.food_item.name,
+    if (!categoryItems.has(itemKey)) {
+      categoryItems.set(itemKey, {
+        food_item_id: item.food_item_id,
+        food_name: displayName,
         category_id: categoryId,
         category_name: category.name,
         has_liters: item.food_item.has_liters,
-        liter_quantities: item.food_item.has_liters ? [] : undefined,
-        total_quantity: item.food_item.has_liters ? undefined : 0,
+        liter_quantities: [],
+        size_quantities: [],
+        total_quantity: 0,
+        is_add_on: isAddOn,
+        parent_food_name: isAddOn ? item.food_item.name : undefined,
+        is_variation: isVariation,
+        variation_name: isVariation ? variationName : undefined,
       });
     }
 
-    const summaryItem = categoryItems.get(foodItemId)!;
+    const summaryItem = categoryItems.get(itemKey)!;
 
-    if (item.food_item.has_liters && item.liter_size) {
-      // Add to liter quantities
+    // Handle liter-based quantities
+    if (item.liter_size_id && item.liter_size) {
       const existingLiter = summaryItem.liter_quantities?.find(
         (lq) => lq.liter_size_id === item.liter_size_id
       );
@@ -462,8 +541,24 @@ export async function getOrdersSummary(
           total_quantity: item.quantity,
         });
       }
-    } else {
-      // Add to total quantity
+    } 
+    // Handle size-based quantities (ג/ק)
+    else if (item.size_type) {
+      const existingSize = summaryItem.size_quantities?.find(
+        (sq) => sq.size_type === item.size_type
+      );
+      if (existingSize) {
+        existingSize.total_quantity += item.quantity;
+      } else {
+        summaryItem.size_quantities?.push({
+          size_type: item.size_type as "big" | "small",
+          size_label: item.size_type === "big" ? "ג׳" : "ק׳",
+          total_quantity: item.quantity,
+        });
+      }
+    }
+    // Handle regular quantities
+    else {
       summaryItem.total_quantity = (summaryItem.total_quantity || 0) + item.quantity;
     }
   }
@@ -473,15 +568,366 @@ export async function getOrdersSummary(
   for (const category of categories) {
     const categoryItems = summaryMap.get(category.id);
     if (categoryItems && categoryItems.size > 0) {
+      // Sort: main items first, then variations, then add-ons
+      const sortedItems = Array.from(categoryItems.values()).sort((a, b) => {
+        // Add-ons come last
+        if (a.is_add_on && !b.is_add_on) return 1;
+        if (!a.is_add_on && b.is_add_on) return -1;
+        // Variations come after main items but before add-ons
+        if (a.is_variation && !b.is_variation && !b.is_add_on) return 1;
+        if (!a.is_variation && b.is_variation && !a.is_add_on) return -1;
+        // Then sort alphabetically
+        return a.food_name.localeCompare(b.food_name, "he");
+      });
+      
       result.push({
         category_id: category.id,
         category_name: category.name,
-        items: Array.from(categoryItems.values()).sort((a, b) =>
-          a.food_name.localeCompare(b.food_name, "he")
-        ),
+        items: sortedItems,
       });
     }
   }
 
   return result;
 }
+
+/**
+ * Update an existing order
+ */
+export interface UpdateOrderInput {
+  customer: {
+    name: string;
+    phone: string;
+    address: string;
+  };
+  order: {
+    order_date: string;
+    order_time: string;
+    delivery_address: string;
+    notes: string;
+  };
+  salads: {
+    food_item_id: string;
+    selected: boolean;
+    measurement_type: string;
+    liters: { liter_size_id: string; quantity: number }[];
+    size_big: number;
+    size_small: number;
+    regular_quantity: number;
+    addOns: { addon_id: string; quantity: number; liters: { liter_size_id: string; quantity: number }[] }[];
+    note: string;
+  }[];
+  middle_courses: {
+    food_item_id: string;
+    selected: boolean;
+    quantity: number;
+    preparation_id?: string;
+    note?: string;
+  }[];
+  sides: {
+    food_item_id: string;
+    selected: boolean;
+    size_big: number;
+    size_small: number;
+    preparation_id?: string;
+    note?: string;
+    variations?: { variation_id: string; size_big: number; size_small: number }[];
+  }[];
+  mains: {
+    food_item_id: string;
+    selected: boolean;
+    quantity: number;
+    preparation_id?: string;
+    note?: string;
+  }[];
+  extras: {
+    food_item_id: string;
+    selected: boolean;
+    quantity: number;
+    preparation_id?: string;
+    note?: string;
+  }[];
+}
+
+export async function updateOrder(
+  orderId: string,
+  input: UpdateOrderInput
+): Promise<SaveOrderResult> {
+  const supabase = createClient();
+
+  try {
+    // 1. Update customer info
+    const { customer, error: customerError } = await findOrCreateCustomer(
+      input.customer.phone,
+      input.customer.name,
+      input.customer.address
+    );
+
+    if (customerError || !customer) {
+      return { success: false, error: customerError || "Failed to update customer" };
+    }
+
+    // 2. Update the order
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .update({
+        customer_id: customer.id,
+        order_date: input.order.order_date,
+        order_time: input.order.order_time || null,
+        delivery_address: input.order.delivery_address || null,
+        notes: input.order.notes || null,
+      })
+      .eq("id", orderId)
+      .select()
+      .single();
+
+    if (orderError) {
+      return { success: false, error: orderError.message };
+    }
+
+    // 3. Delete all existing order items
+    const { error: deleteError } = await supabase
+      .from("order_items")
+      .delete()
+      .eq("order_id", orderId);
+
+    if (deleteError) {
+      return { success: false, error: deleteError.message };
+    }
+
+    // 4. Create new order items
+    const orderItems: {
+      id: string;
+      order_id: string;
+      food_item_id: string;
+      liter_size_id: string | null;
+      size_type: string | null;
+      quantity: number;
+      item_note: string | null;
+      preparation_id: string | null;
+      variation_id: string | null;
+      add_on_id: string | null;
+    }[] = [];
+
+    // Add salad items
+    for (const salad of input.salads) {
+      if (!salad.selected) continue;
+      let isFirstItem = true;
+
+      if (salad.measurement_type === "liters") {
+        for (const liter of salad.liters) {
+          if (liter.quantity > 0) {
+            orderItems.push({
+              id: uuidv4(),
+              order_id: orderId,
+              food_item_id: salad.food_item_id,
+              liter_size_id: liter.liter_size_id,
+              size_type: null,
+              quantity: liter.quantity,
+              item_note: isFirstItem && salad.note ? salad.note : null,
+              preparation_id: null,
+              variation_id: null,
+              add_on_id: null,
+            });
+            isFirstItem = false;
+          }
+        }
+      } else if (salad.measurement_type === "size") {
+        if (salad.size_big > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: salad.food_item_id,
+            liter_size_id: null,
+            size_type: "big",
+            quantity: salad.size_big,
+            item_note: isFirstItem && salad.note ? salad.note : null,
+            preparation_id: null,
+            variation_id: null,
+            add_on_id: null,
+          });
+          isFirstItem = false;
+        }
+        if (salad.size_small > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: salad.food_item_id,
+            liter_size_id: null,
+            size_type: "small",
+            quantity: salad.size_small,
+            item_note: isFirstItem && salad.note ? salad.note : null,
+            preparation_id: null,
+            variation_id: null,
+            add_on_id: null,
+          });
+          isFirstItem = false;
+        }
+      } else if (salad.regular_quantity > 0) {
+        orderItems.push({
+          id: uuidv4(),
+          order_id: orderId,
+          food_item_id: salad.food_item_id,
+          liter_size_id: null,
+          size_type: null,
+          quantity: salad.regular_quantity,
+          item_note: salad.note || null,
+          preparation_id: null,
+          variation_id: null,
+          add_on_id: null,
+        });
+      }
+
+      // Add add-on items
+      for (const addOn of salad.addOns) {
+        if (addOn.quantity > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: salad.food_item_id,
+            liter_size_id: null,
+            size_type: null,
+            quantity: addOn.quantity,
+            item_note: null,
+            preparation_id: null,
+            variation_id: null,
+            add_on_id: addOn.addon_id,
+          });
+        } else {
+          for (const liter of addOn.liters) {
+            if (liter.quantity > 0) {
+              orderItems.push({
+                id: uuidv4(),
+                order_id: orderId,
+                food_item_id: salad.food_item_id,
+                liter_size_id: liter.liter_size_id,
+                size_type: null,
+                quantity: liter.quantity,
+                item_note: null,
+                preparation_id: null,
+                variation_id: null,
+                add_on_id: addOn.addon_id,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Add middle courses, mains, extras
+    const regularCategories = [
+      { items: input.middle_courses },
+      { items: input.mains },
+      { items: input.extras },
+    ];
+
+    for (const category of regularCategories) {
+      for (const item of category.items) {
+        if (item.selected && item.quantity > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: item.food_item_id,
+            liter_size_id: null,
+            size_type: null,
+            quantity: item.quantity,
+            item_note: item.note || null,
+            preparation_id: item.preparation_id || null,
+            variation_id: null,
+            add_on_id: null,
+          });
+        }
+      }
+    }
+
+    // Add sides
+    for (const side of input.sides) {
+      if (!side.selected) continue;
+      let isFirstItem = true;
+
+      if (side.variations && side.variations.length > 0) {
+        for (const variation of side.variations) {
+          if (variation.size_big > 0) {
+            orderItems.push({
+              id: uuidv4(),
+              order_id: orderId,
+              food_item_id: side.food_item_id,
+              liter_size_id: null,
+              size_type: "big",
+              quantity: variation.size_big,
+              item_note: isFirstItem && side.note ? side.note : null,
+              preparation_id: side.preparation_id || null,
+              variation_id: variation.variation_id,
+              add_on_id: null,
+            });
+            isFirstItem = false;
+          }
+          if (variation.size_small > 0) {
+            orderItems.push({
+              id: uuidv4(),
+              order_id: orderId,
+              food_item_id: side.food_item_id,
+              liter_size_id: null,
+              size_type: "small",
+              quantity: variation.size_small,
+              item_note: isFirstItem && side.note ? side.note : null,
+              preparation_id: side.preparation_id || null,
+              variation_id: variation.variation_id,
+              add_on_id: null,
+            });
+            isFirstItem = false;
+          }
+        }
+      } else {
+        if (side.size_big > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: side.food_item_id,
+            liter_size_id: null,
+            size_type: "big",
+            quantity: side.size_big,
+            item_note: isFirstItem && side.note ? side.note : null,
+            preparation_id: side.preparation_id || null,
+            variation_id: null,
+            add_on_id: null,
+          });
+          isFirstItem = false;
+        }
+        if (side.size_small > 0) {
+          orderItems.push({
+            id: uuidv4(),
+            order_id: orderId,
+            food_item_id: side.food_item_id,
+            liter_size_id: null,
+            size_type: "small",
+            quantity: side.size_small,
+            item_note: isFirstItem && side.note ? side.note : null,
+            preparation_id: side.preparation_id || null,
+            variation_id: null,
+            add_on_id: null,
+          });
+        }
+      }
+    }
+
+    // Insert new order items
+    if (orderItems.length > 0) {
+      const { error: insertError } = await supabase
+        .from("order_items")
+        .insert(orderItems);
+
+      if (insertError) {
+        return { success: false, error: insertError.message };
+      }
+    }
+
+    return { success: true, order, customer };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+

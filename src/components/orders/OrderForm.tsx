@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +79,9 @@ interface OrderFormState {
 }
 
 export function OrderForm() {
+  // Router for navigation
+  const router = useRouter();
+  
   // Fetch data from Supabase
   const { categories, foodItems, literSizes, isLoading, error } = useSupabaseData();
 
@@ -564,6 +568,128 @@ export function OrderForm() {
         return s;
       }),
     }));
+  };
+
+  // Handle print - saves order data to sessionStorage and navigates to print preview
+  const handlePrint = () => {
+    // Build print data from form state
+    const printData = {
+      customer: {
+        name: formState.customer_name,
+        phone: formState.phone,
+        address: formState.address,
+      },
+      order: {
+        date: formState.order_date,
+        time: formState.order_time,
+        notes: formState.notes,
+      },
+      salads: formState.salads.map(s => {
+          const foodItem = saladItems.find(f => f.id === s.food_item_id);
+          return {
+            food_item_id: s.food_item_id,
+            name: foodItem?.name || "",
+            selected: s.selected,
+            measurement_type: s.measurement_type,
+            liters: s.liters.filter(l => l.quantity > 0).map(l => {
+              const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
+              return {
+                liter_size_id: l.liter_size_id,
+                label: literSize?.label || "",
+                quantity: l.quantity,
+              };
+            }),
+            size_big: s.size_big,
+            size_small: s.size_small,
+            regular_quantity: s.regular_quantity,
+            note: s.note,
+            addOns: s.addOns
+              .filter(ao => ao.quantity > 0 || ao.liters.some(l => l.quantity > 0))
+              .map(ao => {
+                const addOn = foodItem?.add_ons?.find(a => a.id === ao.addon_id);
+                return {
+                  addon_id: ao.addon_id,
+                  name: addOn?.name || "",
+                  quantity: ao.quantity,
+                  liters: ao.liters
+                    .filter(l => l.quantity > 0)
+                    .map(l => {
+                      const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
+                      return {
+                        liter_size_id: l.liter_size_id,
+                        label: literSize?.label || "",
+                        quantity: l.quantity,
+                      };
+                    }),
+                };
+              }),
+          };
+        }),
+      middleCourses: formState.middle_courses.map(m => {
+          const foodItem = middleItems.find(f => f.id === m.food_item_id);
+          return {
+            food_item_id: m.food_item_id,
+            name: foodItem?.name || "",
+            selected: m.selected,
+            quantity: m.quantity,
+            preparation_name: m.preparation_name,
+            note: m.note,
+          };
+        }),
+      sides: formState.sides.map(s => {
+          const foodItem = sideItems.find(f => f.id === s.food_item_id);
+          return {
+            food_item_id: s.food_item_id,
+            name: foodItem?.name || "",
+            selected: s.selected,
+            size_big: s.size_big,
+            size_small: s.size_small,
+            preparation_name: s.preparation_name,
+            note: s.note,
+            variations: s.variations
+              ?.filter(v => v.size_big > 0 || v.size_small > 0)
+              .map(v => {
+                const variation = foodItem?.variations?.find(fv => fv.id === v.variation_id);
+                return {
+                  variation_id: v.variation_id,
+                  name: variation?.name || "",
+                  size_big: v.size_big,
+                  size_small: v.size_small,
+                };
+              }),
+          };
+        }),
+      mains: formState.mains.map(m => {
+          const foodItem = mainItems.find(f => f.id === m.food_item_id);
+          return {
+            food_item_id: m.food_item_id,
+            name: foodItem?.name || "",
+            selected: m.selected,
+            quantity: m.quantity,
+            preparation_name: m.preparation_name,
+            note: m.note,
+            portion_multiplier: foodItem?.portion_multiplier,
+            portion_unit: foodItem?.portion_unit,
+          };
+        }),
+      extras: formState.extras.map(e => {
+          const foodItem = extraItems.find(f => f.id === e.food_item_id);
+          return {
+            food_item_id: e.food_item_id,
+            name: foodItem?.name || "",
+            selected: e.selected,
+            quantity: e.quantity,
+            preparation_name: e.preparation_name,
+            note: e.note,
+          };
+        }),
+    };
+
+    // Store in sessionStorage
+    sessionStorage.setItem("printOrderData", JSON.stringify(printData));
+    
+    // Navigate to print preview
+    router.push("/print-preview");
   };
 
   const handleSave = async () => {
@@ -1368,7 +1494,12 @@ export function OrderForm() {
             )}
             {isSaving ? "שומר..." : LABELS.actions.save}
           </Button>
-          <Button variant="secondary" className="gap-2" disabled={isSaving}>
+          <Button 
+            variant="secondary" 
+            className="gap-2" 
+            disabled={isSaving}
+            onClick={handlePrint}
+          >
             <Printer className="h-5 w-5" />
             {LABELS.actions.print}
           </Button>
