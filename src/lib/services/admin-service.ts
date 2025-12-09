@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { FoodItem, Category, MeasurementType, FoodItemPreparation } from "@/types";
+import { FoodItem, Category, MeasurementType, FoodItemPreparation, FoodItemAddOn } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
 export interface CreateFoodItemInput {
@@ -361,6 +361,156 @@ export async function permanentlyDeletePreparation(
 
   if (error) {
     console.error("Error permanently deleting preparation:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// ========== Add-On Management (תוספות אופציונליות) ==========
+
+export interface CreateAddOnInput {
+  parent_food_item_id: string;
+  name: string;
+  measurement_type: MeasurementType;
+}
+
+export interface UpdateAddOnInput {
+  id: string;
+  name?: string;
+  measurement_type?: MeasurementType;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+/**
+ * Get add-ons for a food item
+ */
+export async function getAddOns(foodItemId: string): Promise<FoodItemAddOn[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("food_item_add_ons")
+    .select("*")
+    .eq("parent_food_item_id", foodItemId)
+    .order("sort_order");
+
+  if (error) {
+    console.error("Error fetching add-ons:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Create a new add-on
+ */
+export async function createAddOn(
+  input: CreateAddOnInput
+): Promise<{ success: boolean; addOn?: FoodItemAddOn; error?: string }> {
+  const supabase = createClient();
+
+  // Get the max sort_order for the food item
+  const { data: existingAddOns } = await supabase
+    .from("food_item_add_ons")
+    .select("sort_order")
+    .eq("parent_food_item_id", input.parent_food_item_id)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const nextSortOrder = existingAddOns && existingAddOns.length > 0
+    ? existingAddOns[0].sort_order + 1
+    : 1;
+
+  const newAddOn = {
+    id: uuidv4(),
+    parent_food_item_id: input.parent_food_item_id,
+    name: input.name,
+    measurement_type: input.measurement_type,
+    is_active: true,
+    sort_order: nextSortOrder,
+  };
+
+  const { data, error } = await supabase
+    .from("food_item_add_ons")
+    .insert(newAddOn)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating add-on:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, addOn: data };
+}
+
+/**
+ * Update an add-on
+ */
+export async function updateAddOn(
+  input: UpdateAddOnInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const updates: Record<string, unknown> = {};
+
+  if (input.name !== undefined) updates.name = input.name;
+  if (input.measurement_type !== undefined) updates.measurement_type = input.measurement_type;
+  if (input.is_active !== undefined) updates.is_active = input.is_active;
+  if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+
+  const { error } = await supabase
+    .from("food_item_add_ons")
+    .update(updates)
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("Error updating add-on:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Delete an add-on (soft delete)
+ */
+export async function deleteAddOn(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Soft delete - set is_active to false
+  const { error } = await supabase
+    .from("food_item_add_ons")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error deleting add-on:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Permanently delete an add-on
+ */
+export async function permanentlyDeleteAddOn(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("food_item_add_ons")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error permanently deleting add-on:", error);
     return { success: false, error: error.message };
   }
 
