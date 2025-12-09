@@ -379,6 +379,12 @@ export interface SummaryItem {
   // Is this a variation item?
   is_variation?: boolean;
   variation_name?: string;
+  // Portion calculation (for mains like שניצל, קציצות, בשר לפי גרם)
+  portion_multiplier?: number | null;
+  portion_unit?: string | null;
+  // Preparation method (e.g., עשבי תיבול, ברוטב)
+  has_preparation?: boolean;
+  preparation_name?: string | null;
 }
 
 export interface CategorySummary {
@@ -424,7 +430,7 @@ export async function getOrdersSummary(
     .from("order_items")
     .select(`
       *,
-      food_item:food_items(id, name, category_id, has_liters),
+      food_item:food_items(id, name, category_id, has_liters, portion_multiplier, portion_unit),
       liter_size:liter_sizes(id, label, size)
     `)
     .in("order_id", orderIds);
@@ -463,6 +469,22 @@ export async function getOrdersSummary(
     }
   }
 
+  // Get preparation names separately if there are items with preparation_id
+  const itemsWithPreparations = items?.filter(i => i.preparation_id) || [];
+  let preparationsMap = new Map<string, string>();
+  
+  if (itemsWithPreparations.length > 0) {
+    const preparationIds = [...new Set(itemsWithPreparations.map(i => i.preparation_id))];
+    const { data: preparations } = await supabase
+      .from("food_item_preparations")
+      .select("id, name")
+      .in("id", preparationIds);
+    
+    if (preparations) {
+      preparations.forEach(p => preparationsMap.set(p.id, p.name));
+    }
+  }
+
   if (!items || !categories) {
     return [];
   }
@@ -491,12 +513,18 @@ export async function getOrdersSummary(
     const variationName = item.variation_id ? variationsMap.get(item.variation_id) : null;
     const isVariation = !!item.variation_id && !!variationName;
     
-    // Create unique key: include add_on_id and variation_id for uniqueness
+    // Check if this item has a preparation
+    const preparationName = item.preparation_id ? preparationsMap.get(item.preparation_id) : null;
+    const hasPreparation = !!item.preparation_id && !!preparationName;
+    
+    // Create unique key: include add_on_id, variation_id, and preparation_id for uniqueness
     let itemKey = item.food_item_id;
     if (isAddOn) {
       itemKey = `${item.food_item_id}_addon_${item.add_on_id}`;
     } else if (isVariation) {
       itemKey = `${item.food_item_id}_variation_${item.variation_id}`;
+    } else if (hasPreparation) {
+      itemKey = `${item.food_item_id}_prep_${item.preparation_id}`;
     }
     
     // Build display name
@@ -505,6 +533,8 @@ export async function getOrdersSummary(
       displayName = `${addOnName} (תוספת ל${item.food_item.name})`;
     } else if (isVariation) {
       displayName = `${item.food_item.name} - ${variationName}`;
+    } else if (hasPreparation) {
+      displayName = `${item.food_item.name} (${preparationName})`;
     }
 
     if (!categoryItems.has(itemKey)) {
@@ -521,6 +551,10 @@ export async function getOrdersSummary(
         parent_food_name: isAddOn ? item.food_item.name : undefined,
         is_variation: isVariation,
         variation_name: isVariation ? variationName : undefined,
+        portion_multiplier: item.food_item.portion_multiplier,
+        portion_unit: item.food_item.portion_unit,
+        has_preparation: hasPreparation,
+        preparation_name: hasPreparation ? preparationName : undefined,
       });
     }
 

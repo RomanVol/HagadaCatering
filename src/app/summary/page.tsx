@@ -544,12 +544,37 @@ export default function SummaryPage() {
                     </h3>
                   </div>
                   <div className="divide-y divide-gray-100">
-                    {category.items.map((item, itemIndex) => (
-                      <div key={`${item.food_item_id}_${item.is_add_on ? 'addon' : item.is_variation ? 'var' : 'main'}_${itemIndex}`} className="p-4">
+                    {category.items.map((item, itemIndex) => {
+                      // Calculate portion total for items with portion_multiplier
+                      const getPortionDisplay = () => {
+                        if (!item.portion_multiplier || !item.portion_unit || !item.total_quantity) {
+                          return null;
+                        }
+                        const total = item.total_quantity * item.portion_multiplier;
+                        if (item.portion_unit === "גרם") {
+                          // Convert grams to kg if >= 1000
+                          if (total >= 1000) {
+                            const kg = total / 1000;
+                            return `${item.total_quantity} = ${kg} ק״ג`;
+                          }
+                          return `${item.total_quantity} = ${total} גרם`;
+                        } else if (item.portion_unit === "חצאים") {
+                          return `${item.total_quantity} = ${total} יח׳`;
+                        } else if (item.portion_unit === "קציצות") {
+                          return `${item.total_quantity} = ${total} קציצות`;
+                        } else {
+                          return `${item.total_quantity} = ${total} ${item.portion_unit}`;
+                        }
+                      };
+                      
+                      const portionDisplay = getPortionDisplay();
+                      
+                      return (
+                      <div key={`${item.food_item_id}_${item.is_add_on ? 'addon' : item.is_variation ? 'var' : item.has_preparation ? 'prep' : 'main'}_${itemIndex}`} className="p-4">
                         <div className="flex items-start justify-between">
                           <span className={cn(
                             "font-medium",
-                            item.is_add_on ? "text-purple-700" : item.is_variation ? "text-blue-700" : "text-gray-800"
+                            item.is_add_on ? "text-purple-700" : item.is_variation ? "text-blue-700" : item.has_preparation ? "text-teal-700" : "text-gray-800"
                           )}>
                             {item.food_name}
                           </span>
@@ -558,8 +583,11 @@ export default function SummaryPage() {
                            (!item.liter_quantities || item.liter_quantities.length === 0) &&
                            (!item.size_quantities || item.size_quantities.length === 0) &&
                            item.total_quantity && item.total_quantity > 0 && (
-                            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
-                              {item.total_quantity}
+                            <span className={cn(
+                              "px-3 py-1 rounded-full text-sm font-bold",
+                              portionDisplay ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
+                            )}>
+                              {portionDisplay || item.total_quantity}
                             </span>
                           )}
                         </div>
@@ -600,7 +628,8 @@ export default function SummaryPage() {
                           </div>
                         )}
                       </div>
-                    ))}
+                    );
+                    })}
                   </div>
                 </div>
               ))}
