@@ -40,6 +40,8 @@ interface FoodItemCardProps {
   quantity: number;
   sizeQuantity?: SizeQuantity; // For size-based categories like תוספות
   useSizeMode?: boolean; // Whether this category uses size mode
+  useLitersMode?: boolean; // Whether this category uses liters mode
+  literQuantities?: { liter_size_id: string; label: string; quantity: number }[]; // For liters display
   preparationName?: string;
   note?: string;
   variationQuantities?: VariationQuantity[]; // For items with variations like אורז
@@ -52,6 +54,8 @@ export function FoodItemCard({
   quantity,
   sizeQuantity,
   useSizeMode,
+  useLitersMode,
+  literQuantities,
   preparationName,
   note,
   variationQuantities,
@@ -79,6 +83,17 @@ export function FoodItemCard({
       return parts.join("\n");
     }
     
+    // For liters mode, show liter quantities
+    if (useLitersMode && literQuantities) {
+      const parts: string[] = [];
+      literQuantities.forEach((lq) => {
+        if (lq.quantity > 0) {
+          parts.push(`${lq.label}×${lq.quantity}`);
+        }
+      });
+      return parts.join(" ");
+    }
+    
     if (useSizeMode && sizeQuantity) {
       const parts: string[] = [];
       if (sizeQuantity.big > 0) parts.push(`${sizeQuantity.big}ג׳`);
@@ -86,7 +101,7 @@ export function FoodItemCard({
       return parts.join(" ");
     }
     return quantity > 0 ? `× ${quantity}` : "";
-  }, [hasVariations, variationQuantities, item.variations, useSizeMode, sizeQuantity, quantity]);
+  }, [hasVariations, variationQuantities, item.variations, useLitersMode, literQuantities, useSizeMode, sizeQuantity, quantity]);
 
   // Calculate portion total for items with portion_multiplier
   const portionTotal = React.useMemo(() => {
@@ -98,11 +113,14 @@ export function FoodItemCard({
     if (hasVariations && variationQuantities) {
       return variationQuantities.some((vq) => vq.size_big > 0 || vq.size_small > 0);
     }
+    if (useLitersMode && literQuantities) {
+      return literQuantities.some((lq) => lq.quantity > 0);
+    }
     if (useSizeMode) {
       return (sizeQuantity?.big || 0) > 0 || (sizeQuantity?.small || 0) > 0;
     }
     return quantity > 0;
-  }, [hasVariations, variationQuantities, useSizeMode, sizeQuantity, quantity]);
+  }, [hasVariations, variationQuantities, useLitersMode, literQuantities, useSizeMode, sizeQuantity, quantity]);
 
   return (
     <button
@@ -124,8 +142,15 @@ export function FoodItemCard({
         </div>
       )}
 
+      {/* Liters mode indicator */}
+      {useLitersMode && !hasVariations && (
+        <span className="absolute top-1 left-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+          L
+        </span>
+      )}
+
       {/* Size mode indicator */}
-      {useSizeMode && !hasVariations && (
+      {useSizeMode && !hasVariations && !useLitersMode && (
         <span className="absolute top-1 left-1 text-[10px] font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded">
           ג׳/ק׳
         </span>
@@ -180,7 +205,7 @@ export function FoodItemCard({
       {/* Indicator when selected but no quantity */}
       {selected && !hasAnySelection && (
         <span className="text-xs text-orange-500 mt-1">
-          {hasVariations ? "בחר סוגים" : (useSizeMode ? "בחר גדלים (ג׳/ק׳)" : "בחר כמות")}
+          {hasVariations ? "בחר סוגים" : (useLitersMode ? "בחר ליטרים" : (useSizeMode ? "בחר גדלים (ג׳/ק׳)" : "בחר כמות"))}
         </span>
       )}
     </button>

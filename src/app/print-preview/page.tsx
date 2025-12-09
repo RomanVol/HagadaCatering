@@ -63,6 +63,7 @@ interface StoredPrintData {
   sides: PrintItemData[];
   mains: PrintItemData[];
   extras: PrintItemData[];
+  bakery: PrintItemData[];
 }
 
 export default function PrintPreviewPage() {
@@ -130,6 +131,7 @@ export default function PrintPreviewPage() {
     const sidesCategory = categories.find(c => c.name_en === "sides");
     const mainsCategory = categories.find(c => c.name_en === "mains");
     const extrasCategory = categories.find(c => c.name_en === "extras");
+    const bakeryCategory = categories.find(c => c.name_en === "bakery");
 
     // Add ALL salad items - one row per salad with all details
     printData.salads.forEach((salad) => {
@@ -245,6 +247,24 @@ export default function PrintPreviewPage() {
         isVisible: true,
       });
     });
+
+    // Add bakery items - all items with selected status
+    if (printData.bakery) {
+      printData.bakery.forEach((item) => {
+        items.push({
+          id: item.food_item_id,
+          food_item_id: item.food_item_id,
+          name: item.name,
+          category_id: bakeryCategory?.id || "",
+          category_name: "לחם, מאפים וקינוחים",
+          selected: item.selected,
+          quantity: item.quantity || 0,
+          note: item.note,
+          sort_order: sortOrder++,
+          isVisible: true,
+        });
+      });
+    }
 
     return items;
   };

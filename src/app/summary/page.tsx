@@ -222,7 +222,7 @@ export default function SummaryPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Date Range Filter */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-4 print-hide">
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 space-y-1">
               <label className="text-sm font-medium text-gray-700">
@@ -263,7 +263,7 @@ export default function SummaryPage() {
 
         {/* View Toggle */}
         {hasSearched && orders.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 print-hide">
             <button
               onClick={() => setViewMode("orders")}
               className={cn(
@@ -436,8 +436,13 @@ export default function SummaryPage() {
         {/* Summary View */}
         {!isLoading && viewMode === "summary" && summary.length > 0 && (
           <div className="space-y-4">
+            {/* Print Header - only visible when printing */}
+            <div className="print-date-range">
+              סיכום כמויות: {formatDate(fromDate)} - {formatDate(toDate)}
+            </div>
+            
             {/* Filter Options */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 print-hide">
               <div className="flex flex-wrap gap-2 mb-4">
                 <button
                   onClick={() => setFilterMode("all")}
@@ -558,15 +563,23 @@ export default function SummaryPage() {
                            (!item.liter_quantities || item.liter_quantities.length === 0) &&
                            (!item.size_quantities || item.size_quantities.length === 0) &&
                            item.total_quantity && item.total_quantity > 0 && (
-                            <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
-                              {item.total_quantity}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-bold">
+                                {item.total_quantity}
+                              </span>
+                              {/* Portion calculation */}
+                              {item.portion_multiplier && item.portion_multiplier > 1 && item.portion_unit && (
+                                <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-bold">
+                                  = {item.total_quantity * item.portion_multiplier} {item.portion_unit}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
                         
                         {/* Liter quantities */}
                         {item.liter_quantities && item.liter_quantities.length > 0 && (
-                          <div className="flex flex-wrap gap-2 mt-2">
+                          <div className="flex flex-wrap gap-2 mt-2 items-center">
                             {item.liter_quantities
                               .sort((a, b) => a.liter_size - b.liter_size)
                               .map((lq) => (
@@ -579,6 +592,13 @@ export default function SummaryPage() {
                                   <span className="font-bold">{lq.total_quantity}</span>
                                 </span>
                               ))}
+                            {/* Total liters calculation */}
+                            <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-sm font-bold">
+                              סה״כ{" "}
+                              {item.liter_quantities.reduce((sum, lq) => {
+                                return sum + (lq.liter_size * lq.total_quantity);
+                              }, 0).toFixed(1).replace(/\.0$/, "")}L
+                            </span>
                           </div>
                         )}
                         
@@ -617,11 +637,26 @@ export default function SummaryPage() {
             print-color-adjust: exact;
           }
           header,
-          .no-print {
+          .no-print,
+          .print-hide {
             display: none !important;
           }
           main {
             padding: 0 !important;
+          }
+          .print-date-range {
+            display: block !important;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-bottom: 2px solid #000;
+          }
+        }
+        @media screen {
+          .print-date-range {
+            display: none;
           }
         }
       `}</style>

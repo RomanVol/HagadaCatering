@@ -182,8 +182,8 @@ export default function AdminPage() {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
     let measurementType = newItemMeasurementType;
     
-    // For non-salad categories, force 'none'
-    if (selectedCategory?.name_en !== "salads") {
+    // For categories other than salads and extras, force 'none'
+    if (selectedCategory?.name_en !== "salads" && selectedCategory?.name_en !== "extras") {
       measurementType = "none";
     }
 
@@ -491,6 +491,18 @@ export default function AdminPage() {
     return selectedCategory?.name_en === "mains";
   }, [categories, selectedCategoryId]);
 
+  // Check if selected category is extras (supports both measurement types and portion sizes)
+  const isExtrasCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "extras";
+  }, [categories, selectedCategoryId]);
+
+  // Check if selected category is bakery (supports measurement types like extras)
+  const isBakeryCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "bakery";
+  }, [categories, selectedCategoryId]);
+
   // Get measurement type label
   const getMeasurementLabel = (type: MeasurementType) => {
     switch (type) {
@@ -587,7 +599,7 @@ export default function AdminPage() {
             onClick={() => {
               setIsAddingItem(true);
               setNewItemName("");
-              setNewItemMeasurementType(isSaladsCategory ? "liters" : "none");
+              setNewItemMeasurementType((isSaladsCategory || isExtrasCategory || isBakeryCategory) ? "liters" : "none");
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all"
           >
@@ -616,8 +628,8 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Measurement Type - Only for Salads */}
-              {isSaladsCategory && (
+              {/* Measurement Type - For Salads, Extras and Bakery */}
+              {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {LABELS.measurementType}
@@ -699,7 +711,8 @@ export default function AdminPage() {
                           autoFocus
                         />
                         
-                        {isSaladsCategory && (
+                        {/* Measurement type for salads, extras and bakery */}
+                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                           <div className="flex flex-wrap gap-2">
                             {MEASUREMENT_OPTIONS.map((option) => (
                               <button
@@ -719,8 +732,8 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Portion size fields for mains category */}
-                        {isMainsCategory && (
+                        {/* Portion size fields for mains, extras and bakery categories */}
+                        {(isMainsCategory || isExtrasCategory || isBakeryCategory) && (
                           <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
                             <span className="text-sm text-green-700 font-medium">גודל מנה:</span>
                             <input
@@ -746,13 +759,14 @@ export default function AdminPage() {
                     ) : (
                       <div>
                         <span className="font-medium text-gray-900">{item.name}</span>
-                        {isSaladsCategory && (
+                        {/* Show measurement type for salads, extras and bakery */}
+                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                           <span className="mr-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                             {getMeasurementLabel(item.measurement_type)}
                           </span>
                         )}
-                        {/* Show portion info for mains */}
-                        {isMainsCategory && item.portion_multiplier && item.portion_unit && (
+                        {/* Show portion info for mains, extras and bakery */}
+                        {(isMainsCategory || isExtrasCategory || isBakeryCategory) && item.portion_multiplier && item.portion_unit && (
                           <span className="mr-2 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
                             × {item.portion_multiplier} {item.portion_unit}
                           </span>

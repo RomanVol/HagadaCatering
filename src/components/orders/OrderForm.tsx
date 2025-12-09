@@ -51,6 +51,24 @@ interface RegularFormItem {
   note?: string;
 }
 
+// Extras form item - supports all measurement types like salads
+interface ExtrasFormItem {
+  food_item_id: string;
+  selected: boolean;
+  measurement_type: MeasurementType;
+  // For liters measurement
+  liters: { liter_size_id: string; quantity: number }[];
+  // For size measurement (Big/Small)
+  size_big: number;
+  size_small: number;
+  // For regular quantity (measurement_type "none")
+  quantity: number;
+  // For preparations
+  preparation_id?: string;
+  preparation_name?: string;
+  note?: string;
+}
+
 // Sides use size-based quantities (ג/ק)
 interface SidesFormItem {
   food_item_id: string;
@@ -71,11 +89,17 @@ interface OrderFormState {
   order_time: string;
   address: string;
   notes: string;
+  // Pricing fields
+  total_portions: number;
+  price_per_portion: number;
+  delivery_fee: number;
+  // Food items
   salads: SaladFormItem[];
   middle_courses: RegularFormItem[];
   sides: SidesFormItem[];
   mains: RegularFormItem[];
-  extras: RegularFormItem[];
+  extras: ExtrasFormItem[];
+  bakery: ExtrasFormItem[];
 }
 
 export function OrderForm() {
@@ -91,6 +115,7 @@ export function OrderForm() {
   const sidesCategory = categories.find((c) => c.name_en === "sides");
   const mainsCategory = categories.find((c) => c.name_en === "mains");
   const extrasCategory = categories.find((c) => c.name_en === "extras");
+  const bakeryCategory = categories.find((c) => c.name_en === "bakery");
 
   // Get food items by category
   // Memoize food items by category to prevent infinite loops
@@ -114,6 +139,10 @@ export function OrderForm() {
     () => getFoodItemsByCategoryName(foodItems, categories, "extras"),
     [foodItems, categories]
   );
+  const bakeryItems = React.useMemo(
+    () => getFoodItemsByCategoryName(foodItems, categories, "bakery"),
+    [foodItems, categories]
+  );
 
   // Initialize form state only after data is loaded
   const [formState, setFormState] = React.useState<OrderFormState>({
@@ -123,11 +152,15 @@ export function OrderForm() {
     order_time: "",
     address: "",
     notes: "",
+    total_portions: 0,
+    price_per_portion: 0,
+    delivery_fee: 0,
     salads: [],
     middle_courses: [],
     sides: [],
     mains: [],
     extras: [],
+    bakery: [],
   });
 
   // Set date on client side to avoid hydration mismatch
@@ -196,12 +229,31 @@ export function OrderForm() {
         extras: extraItems.map((item) => ({
           food_item_id: item.id,
           selected: false,
+          measurement_type: item.measurement_type || "none",
+          liters: literSizes.map((ls) => ({
+            liter_size_id: ls.id,
+            quantity: 0,
+          })),
+          size_big: 0,
+          size_small: 0,
+          quantity: 0,
+        })),
+        bakery: bakeryItems.map((item) => ({
+          food_item_id: item.id,
+          selected: false,
+          measurement_type: item.measurement_type || "none",
+          liters: literSizes.map((ls) => ({
+            liter_size_id: ls.id,
+            quantity: 0,
+          })),
+          size_big: 0,
+          size_small: 0,
           quantity: 0,
         })),
       }));
       setIsDataInitialized(true);
     }
-  }, [isDataInitialized, isLoading, foodItems, literSizes, saladItems, middleItems, sideItems, mainItems, extraItems]);
+  }, [isDataInitialized, isLoading, foodItems, literSizes, saladItems, middleItems, sideItems, mainItems, extraItems, bakeryItems]);
 
   // Bulk apply state for salads - now with all 4 liter sizes
   const [bulkLiters, setBulkLiters] = React.useState<{ [key: string]: number }>({});
@@ -225,6 +277,7 @@ export function OrderForm() {
   const [expandedSideId, setExpandedSideId] = React.useState<string | null>(null);
   const [expandedMainId, setExpandedMainId] = React.useState<string | null>(null);
   const [expandedExtraId, setExpandedExtraId] = React.useState<string | null>(null);
+  const [expandedBakeryId, setExpandedBakeryId] = React.useState<string | null>(null);
 
   // Saving state - must be before early returns!
   const [isSaving, setIsSaving] = React.useState(false);
@@ -236,6 +289,7 @@ export function OrderForm() {
   const sidesCount = formState.sides.filter((s) => s.selected).length;
   const mainsCount = formState.mains.filter((m) => m.selected).length;
   const extrasCount = formState.extras.filter((e) => e.selected).length;
+  const bakeryCount = formState.bakery.filter((b) => b.selected).length;
 
   // Show loading state
   if (isLoading) {
@@ -389,7 +443,7 @@ export function OrderForm() {
   };
 
   const handleRegularToggle = (
-    category: "middle_courses" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras" | "bakery",
     foodItemId: string,
     checked: boolean
   ) => {
@@ -397,14 +451,14 @@ export function OrderForm() {
       ...prev,
       [category]: prev[category].map((item) =>
         item.food_item_id === foodItemId
-          ? { ...item, selected: checked, quantity: checked ? 1 : 0 }
+          ? { ...item, selected: checked }
           : item
       ),
     }));
   };
 
   const handleRegularQuantityChange = (
-    category: "middle_courses" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras" | "bakery",
     foodItemId: string,
     quantity: number
   ) => {
@@ -419,7 +473,7 @@ export function OrderForm() {
   };
 
   const handleNoteChange = (
-    category: "middle_courses" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras" | "bakery",
     foodItemId: string,
     note: string
   ) => {
@@ -431,13 +485,158 @@ export function OrderForm() {
     }));
   };
 
+  // Extras category handlers - supports all measurement types
+  const handleExtrasToggle = (foodItemId: string, checked: boolean) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: checked }
+          : item
+      ),
+    }));
+  };
+
+  const handleExtrasLiterChange = (
+    foodItemId: string,
+    literSizeId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newLiters = item.liters.map((l) =>
+            l.liter_size_id === literSizeId ? { ...l, quantity } : l
+          );
+          // Auto-select if any liters > 0
+          const hasAnyLiters = newLiters.some((l) => l.quantity > 0);
+          return { ...item, liters: newLiters, selected: hasAnyLiters };
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleExtrasSizeChange = (
+    foodItemId: string,
+    size: "big" | "small",
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newItem = {
+            ...item,
+            [size === "big" ? "size_big" : "size_small"]: quantity,
+          };
+          // Auto-select if any size > 0
+          newItem.selected = newItem.size_big > 0 || newItem.size_small > 0;
+          return newItem;
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleExtrasQuantityChange = (
+    foodItemId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, quantity, selected: quantity > 0 }
+          : item
+      ),
+    }));
+  };
+
+  // Bakery category handlers - supports all measurement types like extras
+  const handleBakeryToggle = (foodItemId: string, checked: boolean) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: checked }
+          : item
+      ),
+    }));
+  };
+
+  const handleBakeryLiterChange = (
+    foodItemId: string,
+    literSizeId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newLiters = item.liters.map((l) =>
+            l.liter_size_id === literSizeId ? { ...l, quantity } : l
+          );
+          const hasAnyLiters = newLiters.some((l) => l.quantity > 0);
+          return { ...item, liters: newLiters, selected: hasAnyLiters };
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleBakerySizeChange = (
+    foodItemId: string,
+    size: "big" | "small",
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newItem = {
+            ...item,
+            [size === "big" ? "size_big" : "size_small"]: quantity,
+          };
+          newItem.selected = newItem.size_big > 0 || newItem.size_small > 0;
+          return newItem;
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleBakeryQuantityChange = (
+    foodItemId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, quantity, selected: quantity > 0 }
+          : item
+      ),
+    }));
+  };
+
+  const handleBakeryNoteChange = (foodItemId: string, note: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) =>
+        item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
   // Sides category uses size-based quantities (ג/ק)
   const handleSidesToggle = (foodItemId: string, checked: boolean) => {
     setFormState((prev) => ({
       ...prev,
       sides: prev.sides.map((item) =>
         item.food_item_id === foodItemId
-          ? { ...item, selected: checked, size_big: checked ? 1 : 0, size_small: 0 }
+          ? { ...item, selected: checked }
           : item
       ),
     }));
@@ -481,7 +680,7 @@ export function OrderForm() {
   };
 
   const handlePreparationChange = (
-    category: "middle_courses" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras" | "bakery",
     foodItemId: string,
     preparationId: string | undefined,
     preparationName: string | undefined
@@ -498,7 +697,7 @@ export function OrderForm() {
 
   // Note handlers for non-salad categories
   const handleRegularNoteChange = (
-    category: "middle_courses" | "mains" | "extras",
+    category: "middle_courses" | "mains" | "extras" | "bakery",
     foodItemId: string,
     note: string
   ) => {
@@ -678,9 +877,26 @@ export function OrderForm() {
             food_item_id: e.food_item_id,
             name: foodItem?.name || "",
             selected: e.selected,
+            measurement_type: e.measurement_type,
             quantity: e.quantity,
+            liters: e.liters,
+            size_big: e.size_big,
+            size_small: e.size_small,
             preparation_name: e.preparation_name,
             note: e.note,
+            portion_multiplier: foodItem?.portion_multiplier,
+            portion_unit: foodItem?.portion_unit,
+          };
+        }),
+      bakery: formState.bakery.map(b => {
+          const foodItem = bakeryItems.find(f => f.id === b.food_item_id);
+          return {
+            food_item_id: b.food_item_id,
+            name: foodItem?.name || "",
+            selected: b.selected,
+            quantity: b.quantity,
+            preparation_name: b.preparation_name,
+            note: b.note,
           };
         }),
     };
@@ -785,11 +1001,10 @@ export function OrderForm() {
         }
       });
 
-      // Add regular items (middle courses, mains, extras)
+      // Add regular items (middle courses, mains) - simple quantity only
       const regularCategories = [
         { key: "middle_courses" as const, data: formState.middle_courses },
         { key: "mains" as const, data: formState.mains },
-        { key: "extras" as const, data: formState.extras },
       ];
 
       regularCategories.forEach(({ data }) => {
@@ -804,6 +1019,124 @@ export function OrderForm() {
             });
           }
         });
+      });
+
+      // Add bakery items (supports all measurement types like extras)
+      formState.bakery.forEach((item) => {
+        if (item.selected) {
+          const bakeryItem = bakeryItems.find((b) => b.id === item.food_item_id);
+          const measurementType = bakeryItem?.measurement_type || "none";
+          let isFirstItem = true;
+
+          if (measurementType === "liters") {
+            // Save liter-based quantities
+            item.liters.forEach((liter) => {
+              if (liter.quantity > 0) {
+                items.push({
+                  food_item_id: item.food_item_id,
+                  liter_size_id: liter.liter_size_id,
+                  quantity: liter.quantity,
+                  preparation_id: item.preparation_id || null,
+                  item_note: isFirstItem && item.note ? item.note : null,
+                });
+                isFirstItem = false;
+              }
+            });
+          } else if (measurementType === "size") {
+            // Save size-based quantities (big/small)
+            if (item.size_big > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "big",
+                quantity: item.size_big,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+              isFirstItem = false;
+            }
+            if (item.size_small > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "small",
+                quantity: item.size_small,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+            }
+          } else {
+            // Regular quantity
+            if (item.quantity > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                quantity: item.quantity,
+                preparation_id: item.preparation_id || null,
+                item_note: item.note || null,
+              });
+            }
+          }
+        }
+      });
+
+      // Add extras items (supports all measurement types)
+      formState.extras.forEach((item) => {
+        if (item.selected) {
+          const extraItem = extraItems.find((e) => e.id === item.food_item_id);
+          const measurementType = extraItem?.measurement_type || "none";
+          let isFirstItem = true;
+
+          if (measurementType === "liters") {
+            // Save liter-based quantities
+            item.liters.forEach((liter) => {
+              if (liter.quantity > 0) {
+                items.push({
+                  food_item_id: item.food_item_id,
+                  liter_size_id: liter.liter_size_id,
+                  quantity: liter.quantity,
+                  preparation_id: item.preparation_id || null,
+                  item_note: isFirstItem && item.note ? item.note : null,
+                });
+                isFirstItem = false;
+              }
+            });
+          } else if (measurementType === "size") {
+            // Save size-based quantities (big/small)
+            if (item.size_big > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "big",
+                quantity: item.size_big,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+              isFirstItem = false;
+            }
+            if (item.size_small > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                size_type: "small",
+                quantity: item.size_small,
+                preparation_id: item.preparation_id || null,
+                item_note: isFirstItem && item.note ? item.note : null,
+              });
+            }
+          } else {
+            // Regular quantity
+            if (item.quantity > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                quantity: item.quantity,
+                preparation_id: item.preparation_id || null,
+                item_note: item.note || null,
+              });
+            }
+          }
+        }
       });
 
       // Add sides items (using size-based quantities ג/ק or variations)
@@ -998,6 +1331,62 @@ export function OrderForm() {
                   }
                   placeholder="הערות להזמנה"
                 />
+
+                {/* Pricing Section */}
+                <div className="pt-3 border-t border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">תמחור</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="סה״כ מנות"
+                      type="number"
+                      min="0"
+                      value={formState.total_portions || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          total_portions: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="0"
+                    />
+                    <Input
+                      label="מחיר בסיס למנה"
+                      type="number"
+                      min="0"
+                      value={formState.price_per_portion || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          price_per_portion: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="₪0"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <Input
+                      label="הובלה"
+                      type="number"
+                      min="0"
+                      value={formState.delivery_fee || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          delivery_fee: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="₪0"
+                    />
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700">סה״כ לתשלום</label>
+                      <div className="h-12 px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
+                        <span className="text-lg font-bold text-green-600">
+                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </AccordionContent>
           </AccordionItem>
@@ -1006,7 +1395,7 @@ export function OrderForm() {
         {/* Food Selection Accordion */}
         <Accordion
           type="multiple"
-          defaultValue={["salads"]}
+          defaultValue={[]}
           className="space-y-2"
         >
           {/* Salads Section */}
@@ -1179,9 +1568,11 @@ export function OrderForm() {
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
                       onSelect={() => {
-                        // Select the item if not already selected
-                        if (!itemState?.selected) {
+                        // Only select if quantity > 0
+                        if (!itemState?.selected && (itemState?.quantity || 0) > 0) {
                           handleRegularToggle("middle_courses", item.id, true);
+                        } else if ((itemState?.quantity || 0) === 0) {
+                          handleRegularToggle("middle_courses", item.id, false);
                         }
                         setExpandedMiddleId(item.id);
                       }}
@@ -1263,10 +1654,9 @@ export function OrderForm() {
                       note={itemState?.note}
                       variationQuantities={itemState?.variations}
                       onSelect={() => {
-                        // Select the item if not already selected
-                        if (!itemState?.selected) {
-                          handleSidesToggle(item.id, true);
-                        }
+                        // Only select if size_big or size_small > 0
+                        const isSelected = (itemState?.size_big || 0) > 0 || (itemState?.size_small || 0) > 0;
+                        handleSidesToggle(item.id, isSelected);
                         setExpandedSideId(item.id);
                       }}
                     />
@@ -1352,9 +1742,11 @@ export function OrderForm() {
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
                       onSelect={() => {
-                        // Select the item if not already selected
-                        if (!itemState?.selected) {
+                        // Only select if quantity > 0
+                        if (!itemState?.selected && (itemState?.quantity || 0) > 0) {
                           handleRegularToggle("mains", item.id, true);
+                        } else if ((itemState?.quantity || 0) === 0) {
+                          handleRegularToggle("mains", item.id, false);
                         }
                         setExpandedMainId(item.id);
                       }}
@@ -1421,19 +1813,51 @@ export function OrderForm() {
                       const itemState = formState.extras.find(
                         (e) => e.food_item_id === item.id
                       );
+                      const measurementType = item.measurement_type || "none";
+                      
+                      // Calculate quantity based on measurement type for display
+                      let displayQuantity = itemState?.quantity || 0;
+                      const useSizeMode = measurementType === "size";
+                      const useLitersMode = measurementType === "liters";
+                      
+                      // Prepare liter quantities for display
+                      const literQuantitiesForCard = useLitersMode ? 
+                        itemState?.liters.map((l) => {
+                          const literSize = literSizes.find((ls) => ls.id === l.liter_size_id);
+                          return {
+                            liter_size_id: l.liter_size_id,
+                            label: literSize?.label || "",
+                            quantity: l.quantity,
+                          };
+                        }).filter((l) => l.quantity > 0) : undefined;
+                      
                       return (
                         <FoodItemCard
                           key={item.id}
                           item={item}
                           selected={itemState?.selected || false}
-                          quantity={itemState?.quantity || 0}
+                          quantity={displayQuantity}
+                          sizeQuantity={useSizeMode ? {
+                            big: itemState?.size_big || 0,
+                            small: itemState?.size_small || 0,
+                          } : undefined}
+                          useSizeMode={useSizeMode}
+                          useLitersMode={useLitersMode}
+                          literQuantities={literQuantitiesForCard}
                           preparationName={itemState?.preparation_name}
                           note={itemState?.note}
                           onSelect={() => {
-                            // Select the item if not already selected
-                            if (!itemState?.selected) {
-                              handleRegularToggle("extras", item.id, true);
+                            // Only select if quantity/size/liters > 0
+                            const measurementType = item.measurement_type || "none";
+                            let isSelected = false;
+                            if (measurementType === "size") {
+                              isSelected = (itemState?.size_big || 0) > 0 || (itemState?.size_small || 0) > 0;
+                            } else if (measurementType === "liters") {
+                              isSelected = itemState?.liters?.some(l => l.quantity > 0) || false;
+                            } else {
+                              isSelected = (itemState?.quantity || 0) > 0;
                             }
+                            handleExtrasToggle(item.id, isSelected);
                             setExpandedExtraId(item.id);
                           }}
                         />
@@ -1449,15 +1873,127 @@ export function OrderForm() {
                     );
                     if (!expandedItem) return null;
                     
+                    const measurementType = expandedItem.measurement_type || "none";
+                    const useSizeMode = measurementType === "size";
+                    const useLitersMode = measurementType === "liters";
+                    
+                    // For liters mode, create a special popup
+                    if (useLitersMode) {
+                      return (
+                        <>
+                          {/* Backdrop */}
+                          <div 
+                            className="fixed inset-0 bg-black/50 z-40"
+                            onClick={() => setExpandedExtraId(null)}
+                          />
+                          
+                          {/* Popup */}
+                          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[85vh] overflow-y-auto">
+                            <div className="max-w-lg mx-auto p-4">
+                              {/* Header */}
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-bold text-gray-900">{expandedItem.name}</h3>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedExtraId(null)}
+                                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              {/* Liter Size Selectors */}
+                              <div className="mb-6">
+                                <span className="block text-gray-600 mb-3 text-center">בחר כמויות לפי ליטרים:</span>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {literSizes.map((ls) => {
+                                    const literQuantity = expandedState?.liters.find(
+                                      (l) => l.liter_size_id === ls.id
+                                    )?.quantity || 0;
+                                    return (
+                                      <div
+                                        key={ls.id}
+                                        className={cn(
+                                          "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                          literQuantity > 0
+                                            ? "border-blue-500 bg-blue-50"
+                                            : "border-gray-200 bg-white"
+                                        )}
+                                      >
+                                        <span className={cn(
+                                          "text-lg font-bold mb-2",
+                                          literQuantity > 0 ? "text-blue-700" : "text-gray-700"
+                                        )}>
+                                          {ls.label}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => literQuantity > 0 && handleExtrasLiterChange(expandedExtraId, ls.id, literQuantity - 1)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                          >
+                                            −
+                                          </button>
+                                          <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleExtrasLiterChange(expandedExtraId, ls.id, literQuantity + 1)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Notes field */}
+                              <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  📝 הערות
+                                </label>
+                                <textarea
+                                  value={expandedState?.note || ""}
+                                  onChange={(e) => handleNoteChange("extras", expandedExtraId, e.target.value)}
+                                  placeholder="הוסף הערה..."
+                                  className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  dir="rtl"
+                                />
+                              </div>
+                              
+                              {/* Done button */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedExtraId(null)}
+                                className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+                              >
+                                אישור
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    }
+                    
                     return (
                       <FoodItemPopup
                         item={expandedItem}
                         quantity={expandedState?.quantity || 0}
+                        sizeQuantity={useSizeMode ? {
+                          big: expandedState?.size_big || 0,
+                          small: expandedState?.size_small || 0,
+                        } : undefined}
+                        useSizeMode={useSizeMode}
                         selectedPreparationId={expandedState?.preparation_id}
                         note={expandedState?.note}
                         onQuantityChange={(qty) =>
-                          handleRegularQuantityChange("extras", expandedExtraId, qty)
+                          handleExtrasQuantityChange(expandedExtraId, qty)
                         }
+                        onSizeChange={useSizeMode ? (size, qty) =>
+                          handleExtrasSizeChange(expandedExtraId, size, qty)
+                        : undefined}
                         onPreparationChange={(prepId, prepName) =>
                           handlePreparationChange("extras", expandedExtraId, prepId, prepName)
                         }
@@ -1465,6 +2001,234 @@ export function OrderForm() {
                           handleNoteChange("extras", expandedExtraId, note)
                         }
                         onClose={() => setExpandedExtraId(null)}
+                      />
+                    );
+                  })()}
+                </>
+              ) : (
+                <p className="text-gray-500 text-center py-4">
+                  {LABELS.empty.noItems}
+                </p>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+
+          {/* Bakery Section */}
+          <AccordionItem value="bakery" className="bg-white rounded-xl border border-gray-200">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <div className="flex items-center justify-between w-full pl-4">
+                <span className="text-lg font-semibold">
+                  {LABELS.categories.bakery} ({LABELS.selection.unlimited})
+                </span>
+                <span
+                  className={cn(
+                    "text-sm font-medium px-2 py-1 rounded",
+                    bakeryCount > 0
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-500"
+                  )}
+                >
+                  {bakeryCount}
+                </span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 relative">
+              {bakeryItems.length > 0 ? (
+                <>
+                  {/* Bento Grid */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {bakeryItems.map((item) => {
+                      const itemState = formState.bakery.find(
+                        (b) => b.food_item_id === item.id
+                      );
+                      const measurementType = item.measurement_type || "none";
+                      
+                      // Calculate quantity based on measurement type for display
+                      let displayQuantity = itemState?.quantity || 0;
+                      const useSizeMode = measurementType === "size";
+                      const useLitersMode = measurementType === "liters";
+                      
+                      // Prepare liter quantities for display
+                      const literQuantitiesForCard = useLitersMode ? 
+                        itemState?.liters.map((l) => {
+                          const literSize = literSizes.find((ls) => ls.id === l.liter_size_id);
+                          return {
+                            liter_size_id: l.liter_size_id,
+                            label: literSize?.label || "",
+                            quantity: l.quantity,
+                          };
+                        }).filter((l) => l.quantity > 0) : undefined;
+                      
+                      return (
+                        <FoodItemCard
+                          key={item.id}
+                          item={item}
+                          selected={itemState?.selected || false}
+                          quantity={displayQuantity}
+                          sizeQuantity={useSizeMode ? {
+                            big: itemState?.size_big || 0,
+                            small: itemState?.size_small || 0,
+                          } : undefined}
+                          useSizeMode={useSizeMode}
+                          useLitersMode={useLitersMode}
+                          literQuantities={literQuantitiesForCard}
+                          preparationName={itemState?.preparation_name}
+                          note={itemState?.note}
+                          onSelect={() => {
+                            // Only select if quantity/size/liters > 0
+                            const measurementType = item.measurement_type || "none";
+                            let isSelected = false;
+                            if (measurementType === "size") {
+                              isSelected = (itemState?.size_big || 0) > 0 || (itemState?.size_small || 0) > 0;
+                            } else if (measurementType === "liters") {
+                              isSelected = itemState?.liters?.some(l => l.quantity > 0) || false;
+                            } else {
+                              isSelected = (itemState?.quantity || 0) > 0;
+                            }
+                            handleBakeryToggle(item.id, isSelected);
+                            setExpandedBakeryId(item.id);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  
+                  {/* Popup for selected item */}
+                  {expandedBakeryId && (() => {
+                    const expandedItem = bakeryItems.find((i) => i.id === expandedBakeryId);
+                    const expandedState = formState.bakery.find(
+                      (b) => b.food_item_id === expandedBakeryId
+                    );
+                    if (!expandedItem) return null;
+                    
+                    const measurementType = expandedItem.measurement_type || "none";
+                    const useSizeMode = measurementType === "size";
+                    const useLitersMode = measurementType === "liters";
+                    
+                    // For liters mode, create a special popup
+                    if (useLitersMode) {
+                      return (
+                        <>
+                          {/* Backdrop */}
+                          <div 
+                            className="fixed inset-0 bg-black/50 z-40"
+                            onClick={() => setExpandedBakeryId(null)}
+                          />
+                          
+                          {/* Popup */}
+                          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[85vh] overflow-y-auto">
+                            <div className="max-w-lg mx-auto p-4">
+                              {/* Header */}
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-bold text-gray-900">{expandedItem.name}</h3>
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedBakeryId(null)}
+                                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+
+                              {/* Liter Size Selectors */}
+                              <div className="mb-6">
+                                <span className="block text-gray-600 mb-3 text-center">בחר כמויות לפי ליטרים:</span>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {literSizes.map((ls) => {
+                                    const literQuantity = expandedState?.liters.find(
+                                      (l) => l.liter_size_id === ls.id
+                                    )?.quantity || 0;
+                                    return (
+                                      <div
+                                        key={ls.id}
+                                        className={cn(
+                                          "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                          literQuantity > 0
+                                            ? "border-blue-500 bg-blue-50"
+                                            : "border-gray-200 bg-white"
+                                        )}
+                                      >
+                                        <span className={cn(
+                                          "text-lg font-bold mb-2",
+                                          literQuantity > 0 ? "text-blue-700" : "text-gray-700"
+                                        )}>
+                                          {ls.label}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => literQuantity > 0 && handleBakeryLiterChange(expandedBakeryId, ls.id, literQuantity - 1)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                          >
+                                            −
+                                          </button>
+                                          <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleBakeryLiterChange(expandedBakeryId, ls.id, literQuantity + 1)}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold"
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Notes field */}
+                              <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  📝 הערות
+                                </label>
+                                <textarea
+                                  value={expandedState?.note || ""}
+                                  onChange={(e) => handleNoteChange("bakery", expandedBakeryId, e.target.value)}
+                                  placeholder="הוסף הערה..."
+                                  className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  dir="rtl"
+                                />
+                              </div>
+                              
+                              {/* Done button */}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedBakeryId(null)}
+                                className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+                              >
+                                אישור
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      );
+                    }
+                    
+                    return (
+                      <FoodItemPopup
+                        item={expandedItem}
+                        quantity={expandedState?.quantity || 0}
+                        sizeQuantity={useSizeMode ? {
+                          big: expandedState?.size_big || 0,
+                          small: expandedState?.size_small || 0,
+                        } : undefined}
+                        useSizeMode={useSizeMode}
+                        selectedPreparationId={expandedState?.preparation_id}
+                        note={expandedState?.note}
+                        onQuantityChange={(qty) =>
+                          handleBakeryQuantityChange(expandedBakeryId, qty)
+                        }
+                        onSizeChange={(size, qty) =>
+                          handleBakerySizeChange(expandedBakeryId, size, qty)
+                        }
+                        onPreparationChange={(prepId, prepName) =>
+                          handlePreparationChange("bakery", expandedBakeryId, prepId, prepName)
+                        }
+                        onNoteChange={(note) =>
+                          handleRegularNoteChange("bakery", expandedBakeryId, note)
+                        }
+                        onClose={() => setExpandedBakeryId(null)}
                       />
                     );
                   })()}

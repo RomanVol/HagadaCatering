@@ -68,11 +68,48 @@ export async function getFoodItems(categoryId?: string): Promise<FoodItem[]> {
 
 /**
  * Create a new food item
+ * If an inactive item with the same name exists, restore it instead
  */
 export async function createFoodItem(
   input: CreateFoodItemInput
 ): Promise<{ success: boolean; item?: FoodItem; error?: string }> {
   const supabase = createClient();
+
+  // Check if an inactive item with the same name and category exists
+  const { data: existingInactive } = await supabase
+    .from("food_items")
+    .select("*")
+    .eq("name", input.name)
+    .eq("category_id", input.category_id)
+    .eq("is_active", false)
+    .single();
+
+  // If found, restore it instead of creating new
+  if (existingInactive) {
+    const { error: restoreError } = await supabase
+      .from("food_items")
+      .update({ 
+        is_active: true,
+        measurement_type: input.measurement_type,
+        has_liters: input.measurement_type === "liters" || input.measurement_type === "size",
+      })
+      .eq("id", existingInactive.id);
+
+    if (restoreError) {
+      console.error("Error restoring food item:", restoreError);
+      return { success: false, error: restoreError.message };
+    }
+
+    return { 
+      success: true, 
+      item: { 
+        ...existingInactive, 
+        is_active: true,
+        measurement_type: input.measurement_type,
+        has_liters: input.measurement_type === "liters" || input.measurement_type === "size",
+      } 
+    };
+  }
 
   // Get the max sort_order for the category
   const { data: existingItems } = await supabase
