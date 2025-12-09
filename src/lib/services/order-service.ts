@@ -431,19 +431,19 @@ export async function getOrdersSummary(
 
   console.log("Order items:", items?.length, "error:", itemsError);
 
-  // Get add-on names separately if there are items with add_on_id
+  // Get add-on names and measurement_type separately if there are items with add_on_id
   const itemsWithAddOns = items?.filter(i => i.add_on_id) || [];
-  let addOnsMap = new Map<string, string>();
-  
+  let addOnsMap = new Map<string, { name: string; measurement_type: string }>();
+
   if (itemsWithAddOns.length > 0) {
     const addOnIds = [...new Set(itemsWithAddOns.map(i => i.add_on_id))];
     const { data: addOns } = await supabase
       .from("food_item_add_ons")
-      .select("id, name")
+      .select("id, name, measurement_type")
       .in("id", addOnIds);
-    
+
     if (addOns) {
-      addOns.forEach(ao => addOnsMap.set(ao.id, ao.name));
+      addOns.forEach(ao => addOnsMap.set(ao.id, { name: ao.name, measurement_type: ao.measurement_type || 'none' }));
     }
   }
 
@@ -484,7 +484,9 @@ export async function getOrdersSummary(
     const categoryItems = summaryMap.get(categoryId)!;
     
     // Check if this is an add-on item
-    const addOnName = item.add_on_id ? addOnsMap.get(item.add_on_id) : null;
+    const addOnInfo = item.add_on_id ? addOnsMap.get(item.add_on_id) : null;
+    const addOnName = addOnInfo?.name;
+    const addOnMeasurementType = addOnInfo?.measurement_type;
     const isAddOn = !!item.add_on_id && !!addOnName;
     
     // Check if this is a variation item
@@ -508,12 +510,18 @@ export async function getOrdersSummary(
     }
 
     if (!categoryItems.has(itemKey)) {
+      // For add-ons, use the add-on's measurement_type to determine has_liters
+      // For regular items, use the food item's has_liters
+      const hasLiters = isAddOn
+        ? addOnMeasurementType === 'liters'
+        : item.food_item.has_liters;
+
       categoryItems.set(itemKey, {
         food_item_id: item.food_item_id,
         food_name: displayName,
         category_id: categoryId,
         category_name: category.name,
-        has_liters: item.food_item.has_liters,
+        has_liters: hasLiters,
         liter_quantities: [],
         size_quantities: [],
         total_quantity: 0,
