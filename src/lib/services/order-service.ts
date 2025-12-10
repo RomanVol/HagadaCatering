@@ -431,7 +431,6 @@ export async function getOrdersSummary(
     .select(`
       *,
       food_item:food_items(id, name, category_id, has_liters, portion_multiplier, portion_unit),
-      food_item:food_items(id, name, category_id, has_liters, portion_multiplier, portion_unit),
       liter_size:liter_sizes(id, label, size)
     `)
     .in("order_id", orderIds);

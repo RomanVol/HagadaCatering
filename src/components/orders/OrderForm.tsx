@@ -255,6 +255,23 @@ export function OrderForm() {
     }
   }, [isDataInitialized, isLoading, foodItems, literSizes, saladItems, middleItems, sideItems, mainItems, extraItems, bakeryItems]);
 
+  // Restore form state if returning from print preview
+  React.useEffect(() => {
+    if (isDataInitialized) {
+      const savedFormState = sessionStorage.getItem("orderFormState");
+      if (savedFormState) {
+        try {
+          const parsed = JSON.parse(savedFormState);
+          setFormState(parsed);
+          // Clear after restoration to avoid stale data on fresh visits
+          sessionStorage.removeItem("orderFormState");
+        } catch (e) {
+          console.error("Error restoring form state:", e);
+        }
+      }
+    }
+  }, [isDataInitialized]);
+
   // Bulk apply state for salads - now with all 4 liter sizes
   const [bulkLiters, setBulkLiters] = React.useState<{ [key: string]: number }>({});
 
@@ -903,7 +920,10 @@ export function OrderForm() {
 
     // Store in sessionStorage
     sessionStorage.setItem("printOrderData", JSON.stringify(printData));
-    
+
+    // Save form state for restoration when returning from print preview
+    sessionStorage.setItem("orderFormState", JSON.stringify(formState));
+
     // Navigate to print preview
     router.push("/print-preview");
   };

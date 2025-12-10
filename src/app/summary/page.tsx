@@ -187,6 +187,179 @@ export default function SummaryPage() {
     });
   };
 
+  // Transform OrderWithDetails to StoredPrintData format for print-preview
+  const transformOrderToPrintData = (order: OrderWithDetails) => {
+    // Group items by food_item_id, aggregating liters and handling size_type
+    const itemsByFoodItem = new Map<string, {
+      food_item_id: string;
+      name: string;
+      category_id: string;
+      has_liters: boolean;
+      liters: { liter_size_id: string; label: string; quantity: number }[];
+      size_big: number;
+      size_small: number;
+      regular_quantity: number;
+      note: string;
+    }>();
+
+    for (const item of order.items) {
+      if (!item.food_item) continue;
+
+      const foodItemId = item.food_item_id;
+
+      if (!itemsByFoodItem.has(foodItemId)) {
+        itemsByFoodItem.set(foodItemId, {
+          food_item_id: foodItemId,
+          name: item.food_item.name,
+          category_id: item.food_item.category_id,
+          has_liters: item.food_item.has_liters,
+          liters: [],
+          size_big: 0,
+          size_small: 0,
+          regular_quantity: 0,
+          note: item.item_note || "",
+        });
+      }
+
+      const entry = itemsByFoodItem.get(foodItemId)!;
+
+      // Handle liter quantities
+      if (item.liter_size_id && item.liter_size) {
+        entry.liters.push({
+          liter_size_id: item.liter_size_id,
+          label: item.liter_size.label,
+          quantity: item.quantity,
+        });
+      }
+      // Handle size quantities (ג/ק)
+      else if (item.size_type === "big") {
+        entry.size_big += item.quantity;
+      } else if (item.size_type === "small") {
+        entry.size_small += item.quantity;
+      }
+      // Handle regular quantity
+      else {
+        entry.regular_quantity += item.quantity;
+      }
+    }
+
+    // Categorize items by category
+    const saladsCategory = categories.find(c => c.name_en === "salads");
+    const middleCategory = categories.find(c => c.name_en === "middle_courses");
+    const sidesCategory = categories.find(c => c.name_en === "sides");
+    const mainsCategory = categories.find(c => c.name_en === "mains");
+    const extrasCategory = categories.find(c => c.name_en === "extras");
+    const bakeryCategory = categories.find(c => c.name_en === "bakery");
+
+    const salads: {
+      food_item_id: string;
+      name: string;
+      selected: boolean;
+      measurement_type: string;
+      liters: { liter_size_id: string; label: string; quantity: number }[];
+      size_big: number;
+      size_small: number;
+      regular_quantity: number;
+      note: string;
+      addOns: { addon_id: string; name: string; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[] }[];
+    }[] = [];
+    const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
+    const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; note: string }[] = [];
+    const mains: { food_item_id: string; name: string; selected: boolean; quantity: number; portion_multiplier?: number; portion_unit?: string; note: string }[] = [];
+    const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
+    const bakery: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
+
+    for (const item of itemsByFoodItem.values()) {
+      const hasContent = item.liters.length > 0 || item.size_big > 0 ||
+                         item.size_small > 0 || item.regular_quantity > 0;
+
+      if (item.category_id === saladsCategory?.id) {
+        salads.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          measurement_type: item.has_liters ? "liters" : "size",
+          liters: item.liters,
+          size_big: item.size_big,
+          size_small: item.size_small,
+          regular_quantity: item.regular_quantity,
+          note: item.note,
+          addOns: [],
+        });
+      } else if (item.category_id === middleCategory?.id) {
+        middleCourses.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          quantity: item.regular_quantity,
+          note: item.note,
+        });
+      } else if (item.category_id === sidesCategory?.id) {
+        sides.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          size_big: item.size_big,
+          size_small: item.size_small,
+          note: item.note,
+        });
+      } else if (item.category_id === mainsCategory?.id) {
+        const foodItem = foodItems.find(f => f.id === item.food_item_id);
+        mains.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          quantity: item.regular_quantity,
+          portion_multiplier: foodItem?.portion_multiplier ?? undefined,
+          portion_unit: foodItem?.portion_unit ?? undefined,
+          note: item.note,
+        });
+      } else if (item.category_id === extrasCategory?.id) {
+        extras.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          quantity: item.regular_quantity,
+          note: item.note,
+        });
+      } else if (item.category_id === bakeryCategory?.id) {
+        bakery.push({
+          food_item_id: item.food_item_id,
+          name: item.name,
+          selected: hasContent,
+          quantity: item.regular_quantity,
+          note: item.note,
+        });
+      }
+    }
+
+    return {
+      customer: {
+        name: order.customer?.name || "",
+        phone: order.customer?.phone || "",
+        address: order.delivery_address || order.customer?.address || "",
+      },
+      order: {
+        date: order.order_date,
+        time: order.order_time || "",
+        notes: order.notes || "",
+      },
+      salads,
+      middleCourses,
+      sides,
+      mains,
+      extras,
+      bakery,
+    };
+  };
+
+  // Handle printing a specific order
+  const handlePrintOrder = (order: OrderWithDetails) => {
+    const printData = transformOrderToPrintData(order);
+    sessionStorage.setItem("printOrderData", JSON.stringify(printData));
+    router.push("/print-preview");
+  };
+
   if (dataLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -413,14 +586,24 @@ export default function SummaryPage() {
                       </p>
                     )}
 
-                    {/* Edit Button */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
+                    {/* Action Buttons */}
+                    <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePrintOrder(order);
+                        }}
+                        className="flex-1 h-10 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Printer className="w-4 h-4" />
+                        <span>הדפס</span>
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/edit-order/${order.id}`);
                         }}
-                        className="w-full h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                       >
                         <Pencil className="w-4 h-4" />
                         <span>ערוך הזמנה</span>
