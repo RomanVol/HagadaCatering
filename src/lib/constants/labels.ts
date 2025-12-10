@@ -12,6 +12,7 @@ export const LABELS = {
     sides: 'תוספות',
     mains: 'עיקריות',
     extras: 'אקסטרות',
+    bakery: 'לחם, מאפים וקינוחים',
   },
 
   // Order form fields

@@ -14,9 +14,10 @@ import {
   AlertCircle,
   Check,
   ChefHat,
+  PackagePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Category, FoodItem, FoodItemPreparation, MeasurementType } from "@/types";
+import { Category, FoodItem, FoodItemPreparation, FoodItemAddOn, MeasurementType } from "@/types";
 import {
   getCategories,
   getFoodItems,
@@ -29,6 +30,10 @@ import {
   createPreparation,
   updatePreparation,
   deletePreparation,
+  getAddOns,
+  createAddOn,
+  updateAddOn,
+  deleteAddOn,
 } from "@/lib/services/admin-service";
 
 // Hebrew labels
@@ -62,6 +67,13 @@ const LABELS = {
   noPreparations: "אין אפשרויות הכנה",
   preparationName: "שם האפשרות",
   managePreparations: "ניהול אפשרויות הכנה",
+  // Add-ons (תוספות אופציונליות)
+  addOns: "תוספות אופציונליות",
+  addAddOn: "הוסף תוספת",
+  noAddOns: "אין תוספות אופציונליות",
+  addOnName: "שם התוספת",
+  manageAddOns: "ניהול תוספות",
+  addOnMeasurementType: "סוג מדידה לתוספת",
 };
 
 // Measurement type options
@@ -107,6 +119,16 @@ export default function AdminPage() {
   const [newPreparationName, setNewPreparationName] = React.useState("");
   const [editingPrepId, setEditingPrepId] = React.useState<string | null>(null);
   const [editingPrepName, setEditingPrepName] = React.useState("");
+
+  // Add-ons state (תוספות אופציונליות)
+  const [addOnsModalItem, setAddOnsModalItem] = React.useState<FoodItem | null>(null);
+  const [addOns, setAddOns] = React.useState<FoodItemAddOn[]>([]);
+  const [isLoadingAddOns, setIsLoadingAddOns] = React.useState(false);
+  const [newAddOnName, setNewAddOnName] = React.useState("");
+  const [newAddOnMeasurementType, setNewAddOnMeasurementType] = React.useState<MeasurementType>("liters");
+  const [editingAddOnId, setEditingAddOnId] = React.useState<string | null>(null);
+  const [editingAddOnName, setEditingAddOnName] = React.useState("");
+  const [editingAddOnMeasurementType, setEditingAddOnMeasurementType] = React.useState<MeasurementType>("liters");
 
   // Load categories on mount
   React.useEffect(() => {
@@ -160,8 +182,8 @@ export default function AdminPage() {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
     let measurementType = newItemMeasurementType;
     
-    // For non-salad categories, force 'none'
-    if (selectedCategory?.name_en !== "salads") {
+    // For categories other than salads and extras, force 'none'
+    if (selectedCategory?.name_en !== "salads" && selectedCategory?.name_en !== "extras") {
       measurementType = "none";
     }
 
@@ -355,6 +377,100 @@ export default function AdminPage() {
     }
   };
 
+  // Add-ons handlers (תוספות אופציונליות)
+  const openAddOnsModal = async (item: FoodItem) => {
+    setAddOnsModalItem(item);
+    setIsLoadingAddOns(true);
+    const itemAddOns = await getAddOns(item.id);
+    setAddOns(itemAddOns);
+    setIsLoadingAddOns(false);
+  };
+
+  const closeAddOnsModal = () => {
+    setAddOnsModalItem(null);
+    setAddOns([]);
+    setNewAddOnName("");
+    setNewAddOnMeasurementType("liters");
+    setEditingAddOnId(null);
+    setEditingAddOnName("");
+    setEditingAddOnMeasurementType("liters");
+  };
+
+  const handleAddAddOn = async () => {
+    if (!newAddOnName.trim() || !addOnsModalItem) return;
+
+    setIsSaving(true);
+    const result = await createAddOn({
+      parent_food_item_id: addOnsModalItem.id,
+      name: newAddOnName.trim(),
+      measurement_type: newAddOnMeasurementType,
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setNewAddOnName("");
+      setNewAddOnMeasurementType("liters");
+      setSuccessMessage(`התוספת "${newAddOnName}" נוספה בהצלחה`);
+      const itemAddOns = await getAddOns(addOnsModalItem.id);
+      setAddOns(itemAddOns);
+    } else {
+      setError(result.error || "שגיאה בהוספת התוספת");
+    }
+  };
+
+  const handleUpdateAddOn = async (addOnId: string) => {
+    if (!editingAddOnName.trim()) return;
+
+    setIsSaving(true);
+    const result = await updateAddOn({
+      id: addOnId,
+      name: editingAddOnName.trim(),
+      measurement_type: editingAddOnMeasurementType,
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setEditingAddOnId(null);
+      setEditingAddOnName("");
+      setEditingAddOnMeasurementType("liters");
+      setSuccessMessage("התוספת עודכנה בהצלחה");
+      if (addOnsModalItem) {
+        const itemAddOns = await getAddOns(addOnsModalItem.id);
+        setAddOns(itemAddOns);
+      }
+    } else {
+      setError(result.error || "שגיאה בעדכון התוספת");
+    }
+  };
+
+  const handleDeleteAddOn = async (addOn: FoodItemAddOn) => {
+    if (!confirm(`האם למחוק את "${addOn.name}"?`)) return;
+
+    const result = await deleteAddOn(addOn.id);
+
+    if (result.success) {
+      setSuccessMessage(`התוספת "${addOn.name}" נמחקה`);
+      if (addOnsModalItem) {
+        const itemAddOns = await getAddOns(addOnsModalItem.id);
+        setAddOns(itemAddOns);
+      }
+    } else {
+      setError(result.error || "שגיאה במחיקת התוספת");
+    }
+  };
+
+  // Get measurement type label for add-ons
+  const getAddOnMeasurementLabel = (type: MeasurementType) => {
+    switch (type) {
+      case "liters":
+        return "ליטרים";
+      case "none":
+        return "כמות רגילה";
+      default:
+        return "כמות";
+    }
+  };
+
   // Filter items based on showInactive
   const filteredItems = React.useMemo(() => {
     if (showInactive) {
@@ -373,6 +489,18 @@ export default function AdminPage() {
   const isMainsCategory = React.useMemo(() => {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
     return selectedCategory?.name_en === "mains";
+  }, [categories, selectedCategoryId]);
+
+  // Check if selected category is extras (supports both measurement types and portion sizes)
+  const isExtrasCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "extras";
+  }, [categories, selectedCategoryId]);
+
+  // Check if selected category is bakery (supports measurement types like extras)
+  const isBakeryCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "bakery";
   }, [categories, selectedCategoryId]);
 
   // Get measurement type label
@@ -471,7 +599,7 @@ export default function AdminPage() {
             onClick={() => {
               setIsAddingItem(true);
               setNewItemName("");
-              setNewItemMeasurementType(isSaladsCategory ? "liters" : "none");
+              setNewItemMeasurementType((isSaladsCategory || isExtrasCategory || isBakeryCategory) ? "liters" : "none");
             }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all"
           >
@@ -500,8 +628,8 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Measurement Type - Only for Salads */}
-              {isSaladsCategory && (
+              {/* Measurement Type - For Salads, Extras and Bakery */}
+              {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {LABELS.measurementType}
@@ -583,7 +711,8 @@ export default function AdminPage() {
                           autoFocus
                         />
                         
-                        {isSaladsCategory && (
+                        {/* Measurement type for salads, extras and bakery */}
+                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                           <div className="flex flex-wrap gap-2">
                             {MEASUREMENT_OPTIONS.map((option) => (
                               <button
@@ -603,8 +732,8 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Portion size fields for mains category */}
-                        {isMainsCategory && (
+                        {/* Portion size fields for mains, extras and bakery categories */}
+                        {(isMainsCategory || isExtrasCategory || isBakeryCategory) && (
                           <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
                             <span className="text-sm text-green-700 font-medium">גודל מנה:</span>
                             <input
@@ -630,13 +759,14 @@ export default function AdminPage() {
                     ) : (
                       <div>
                         <span className="font-medium text-gray-900">{item.name}</span>
-                        {isSaladsCategory && (
+                        {/* Show measurement type for salads, extras and bakery */}
+                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
                           <span className="mr-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                             {getMeasurementLabel(item.measurement_type)}
                           </span>
                         )}
-                        {/* Show portion info for mains */}
-                        {isMainsCategory && item.portion_multiplier && item.portion_unit && (
+                        {/* Show portion info for mains, extras and bakery */}
+                        {(isMainsCategory || isExtrasCategory || isBakeryCategory) && item.portion_multiplier && item.portion_unit && (
                           <span className="mr-2 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
                             × {item.portion_multiplier} {item.portion_unit}
                           </span>
@@ -674,6 +804,17 @@ export default function AdminPage() {
                       </>
                     ) : (
                       <>
+                        {/* Add-ons button - only for salad category */}
+                        {isSaladsCategory && item.is_active && (
+                          <button
+                            onClick={() => openAddOnsModal(item)}
+                            className="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors"
+                            title={LABELS.manageAddOns}
+                          >
+                            <PackagePlus className="w-5 h-5" />
+                          </button>
+                        )}
+
                         {/* Preparations button - only for non-salad categories */}
                         {!isSaladsCategory && item.is_active && (
                           <button
@@ -889,6 +1030,247 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={closePreparationsModal}
+                className="w-full h-12 mt-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
+              >
+                {LABELS.cancel}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Add-Ons Modal (תוספות אופציונליות) */}
+      {addOnsModalItem && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={closeAddOnsModal}
+          />
+
+          {/* Modal */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[80vh] overflow-hidden">
+            <div className="max-w-lg mx-auto p-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{LABELS.addOns}</h3>
+                  <p className="text-sm text-gray-500">{addOnsModalItem.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeAddOnsModal}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Add New Add-On */}
+              <div className="space-y-3 mb-4 p-3 bg-orange-50 rounded-lg border border-orange-200">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newAddOnName}
+                    onChange={(e) => setNewAddOnName(e.target.value)}
+                    placeholder={LABELS.addOnName}
+                    className="flex-1 h-12 px-4 rounded-lg border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newAddOnName.trim()) {
+                        handleAddAddOn();
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Measurement Type Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {LABELS.addOnMeasurementType}
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewAddOnMeasurementType("liters")}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-sm font-medium transition-all border",
+                        newAddOnMeasurementType === "liters"
+                          ? "bg-orange-500 text-white border-orange-500"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      ליטרים (1.5, 2.5, 3, 4.5)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewAddOnMeasurementType("none")}
+                      className={cn(
+                        "px-4 py-2 rounded-lg text-sm font-medium transition-all border",
+                        newAddOnMeasurementType === "none"
+                          ? "bg-orange-500 text-white border-orange-500"
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      כמות רגילה (1, 2, 3...)
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleAddAddOn}
+                  disabled={!newAddOnName.trim() || isSaving}
+                  className="w-full h-12 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Plus className="w-5 h-5" />
+                  )}
+                  <span>{LABELS.addAddOn}</span>
+                </button>
+              </div>
+
+              {/* Add-Ons List */}
+              <div className="max-h-[40vh] overflow-y-auto">
+                {isLoadingAddOns ? (
+                  <div className="py-8 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-orange-500" />
+                  </div>
+                ) : addOns.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500">
+                    {LABELS.noAddOns}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {addOns.map((addOn, index) => (
+                      <div
+                        key={addOn.id}
+                        className={cn(
+                          "p-3 rounded-lg border flex items-center gap-3",
+                          addOn.is_active
+                            ? "bg-white border-gray-200"
+                            : "bg-gray-50 border-gray-100 opacity-60"
+                        )}
+                      >
+                        {/* Sort Number */}
+                        <span className="w-6 h-6 flex items-center justify-center bg-orange-100 rounded-full text-xs font-medium text-orange-600">
+                          {index + 1}
+                        </span>
+
+                        {/* Name and Measurement Type */}
+                        <div className="flex-1">
+                          {editingAddOnId === addOn.id ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text"
+                                value={editingAddOnName}
+                                onChange={(e) => setEditingAddOnName(e.target.value)}
+                                className="w-full h-8 px-2 rounded border border-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-200"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingAddOnName.trim()) {
+                                    handleUpdateAddOn(addOn.id);
+                                  } else if (e.key === "Escape") {
+                                    setEditingAddOnId(null);
+                                    setEditingAddOnName("");
+                                    setEditingAddOnMeasurementType("liters");
+                                  }
+                                }}
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingAddOnMeasurementType("liters")}
+                                  className={cn(
+                                    "px-2 py-1 rounded text-xs font-medium transition-all",
+                                    editingAddOnMeasurementType === "liters"
+                                      ? "bg-orange-500 text-white"
+                                      : "bg-gray-100 text-gray-600"
+                                  )}
+                                >
+                                  ליטרים
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingAddOnMeasurementType("none")}
+                                  className={cn(
+                                    "px-2 py-1 rounded text-xs font-medium transition-all",
+                                    editingAddOnMeasurementType === "none"
+                                      ? "bg-orange-500 text-white"
+                                      : "bg-gray-100 text-gray-600"
+                                  )}
+                                >
+                                  כמות רגילה
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="font-medium text-gray-900">{addOn.name}</span>
+                              <span className="mr-2 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
+                                {getAddOnMeasurementLabel(addOn.measurement_type)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1">
+                          {editingAddOnId === addOn.id ? (
+                            <>
+                              <button
+                                onClick={() => handleUpdateAddOn(addOn.id)}
+                                disabled={!editingAddOnName.trim() || isSaving}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors disabled:opacity-50"
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingAddOnId(null);
+                                  setEditingAddOnName("");
+                                  setEditingAddOnMeasurementType("liters");
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingAddOnId(addOn.id);
+                                  setEditingAddOnName(addOn.name);
+                                  setEditingAddOnMeasurementType(addOn.measurement_type);
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAddOn(addOn)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={closeAddOnsModal}
                 className="w-full h-12 mt-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
               >
                 {LABELS.cancel}

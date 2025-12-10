@@ -84,6 +84,7 @@ export function PrintOrderPage({
     const sidesCategory = categories.find(c => c.name_en === "sides");
     const mainsCategory = categories.find(c => c.name_en === "mains");
     const extrasCategory = categories.find(c => c.name_en === "extras");
+    const bakeryCategory = categories.find(c => c.name_en === "bakery");
 
     const groupItems = (categoryId: string | undefined) => {
       if (!categoryId) return [];
@@ -122,6 +123,12 @@ export function PrintOrderPage({
         title: "אקסטרות",
         maxItems: 5,
         items: groupItems(extrasCategory?.id),
+      },
+      {
+        id: "bakery",
+        title: "לחם, מאפים וקינוחים",
+        maxItems: 6,
+        items: groupItems(bakeryCategory?.id),
       },
     ];
   });
@@ -224,6 +231,7 @@ export function PrintOrderPage({
     const sidesCategory = categories.find(c => c.name_en === "sides");
     const mainsCategory = categories.find(c => c.name_en === "mains");
     const extrasCategory = categories.find(c => c.name_en === "extras");
+    const bakeryCategory = categories.find(c => c.name_en === "bakery");
 
     const groupItems = (categoryId: string | undefined) => {
       if (!categoryId) return [];
@@ -263,6 +271,12 @@ export function PrintOrderPage({
         title: "אקסטרות",
         maxItems: 5,
         items: groupItems(extrasCategory?.id),
+      },
+      {
+        id: "bakery",
+        title: "לחם, מאפים וקינוחים",
+        maxItems: 6,
+        items: groupItems(bakeryCategory?.id),
       },
     ]);
   };
@@ -490,6 +504,29 @@ export function PrintOrderPage({
                   />
                 ))}
               </div>
+
+              {/* Bakery below extras */}
+              <h2 className="font-bold text-center mb-2 mt-4 bg-gray-100 py-1">
+                {sections[5]?.title}
+              </h2>
+              <div className="space-y-0.5">
+                {sections[5]?.items.map((item, index) => (
+                  <PrintItemRow
+                    key={item.id}
+                    item={item}
+                    index={index + 1}
+                    sectionId="bakery"
+                    isDragging={dragState.draggedItem?.id === item.id}
+                    isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
+                    onHide={() => handleHideItem("bakery", item.id)}
+                    onRestore={() => handleRestoreItem("bakery", item.id)}
+                    onDragStart={() => handleDragStart(item, "bakery")}
+                    onDragOver={(e) => handleDragOver(e, index, "bakery")}
+                    onDragEnd={handleDragEnd}
+                    formatQuantity={formatQuantity}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Column 3: Sides + Mains (combined) */}
@@ -545,19 +582,18 @@ export function PrintOrderPage({
                 <div className="flex items-center gap-2 text-xs">
                   <span>ק.</span>
                   <div className="w-4 h-4 border border-gray-400"></div>
-                  <span>פרנות</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs mt-1">
                   <span>ע.</span>
                   <div className="w-4 h-4 border border-gray-400"></div>
                   <span>א.</span>
                   <div className="w-4 h-4 border border-gray-400"></div>
-                  <span>המוציא</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs mt-1">
                   <span>0.</span>
                   <div className="w-4 h-4 border border-gray-400"></div>
-                  <span>מזונות</span>
+                  <span>ב.</span>
+                  <div className="w-4 h-4 border border-gray-400"></div>
                 </div>
               </div>
             </div>
