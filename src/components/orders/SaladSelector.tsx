@@ -183,6 +183,7 @@ interface SaladLiterPopupProps {
   onAddOnLiterChange?: (addonId: string, literSizeId: string, quantity: number) => void;
   onAddOnQuantityChange?: (addonId: string, quantity: number) => void; // Simple quantity for add-ons
   onNoteChange?: (note: string) => void;
+  onCancel?: () => void; // Cancel/unselect the salad
   onClose: () => void;
 }
 
@@ -201,6 +202,7 @@ export function SaladLiterPopup({
   onAddOnLiterChange,
   onAddOnQuantityChange,
   onNoteChange,
+  onCancel,
   onClose,
 }: SaladLiterPopupProps) {
   const getQuantityForLiter = (literId: string): number => {
@@ -521,14 +523,28 @@ export function SaladLiterPopup({
             </div>
           )}
           
-          {/* Done button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
-          >
-            אישור
-          </button>
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            {/* Cancel/Unselect button */}
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 h-12 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 active:scale-[0.98] transition-all"
+              >
+                ביטול
+              </button>
+            )}
+
+            {/* Confirm button */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+            >
+              אישור
+            </button>
+          </div>
         </div>
       </div>
     </>

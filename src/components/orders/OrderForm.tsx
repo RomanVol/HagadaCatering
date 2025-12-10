@@ -1525,6 +1525,31 @@ export function OrderForm() {
                     onNoteChange={(note) =>
                       handleSaladNoteChange(expandedSaladId, note)
                     }
+                    onCancel={() => {
+                      // Reset all quantities and unselect
+                      setFormState((prev) => ({
+                        ...prev,
+                        salads: prev.salads.map((s) =>
+                          s.food_item_id === expandedSaladId
+                            ? {
+                                ...s,
+                                selected: false,
+                                liters: s.liters.map((l) => ({ ...l, quantity: 0 })),
+                                size_big: 0,
+                                size_small: 0,
+                                regular_quantity: 0,
+                                addOns: s.addOns.map((ao) => ({
+                                  ...ao,
+                                  quantity: 0,
+                                  liters: ao.liters.map((l) => ({ ...l, quantity: 0 })),
+                                })),
+                                note: "",
+                              }
+                            : s
+                        ),
+                      }));
+                      setExpandedSaladId(null);
+                    }}
                     onClose={() => setExpandedSaladId(null)}
                   />
                 );
