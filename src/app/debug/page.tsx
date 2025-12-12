@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function DebugPage() {
@@ -151,12 +152,12 @@ export default function DebugPage() {
       )}
 
       <div className="mt-8">
-        <a
-          href="/"
+        <Link
+          href="/order"
           className="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-600"
         >
           חזרה לעמוד הבית
-        </a>
+        </Link>
       </div>
     </div>
   );

@@ -23,6 +23,7 @@ import {
   CategorySummary,
 } from "@/lib/services/order-service";
 import { useSupabaseData } from "@/hooks/useSupabaseData";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Hebrew labels
 const LABELS = {
@@ -200,6 +201,7 @@ export default function SummaryPage() {
       size_small: number;
       regular_quantity: number;
       note: string;
+      preparation_name: string;
     }>();
 
     for (const item of order.items) {
@@ -218,6 +220,7 @@ export default function SummaryPage() {
           size_small: 0,
           regular_quantity: 0,
           note: item.item_note || "",
+          preparation_name: item.preparation?.name || "",
         });
       }
 
@@ -263,7 +266,7 @@ export default function SummaryPage() {
       note: string;
       addOns: { addon_id: string; name: string; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[] }[];
     }[] = [];
-    const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
+    const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; preparation_name?: string; note: string }[] = [];
     const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; note: string }[] = [];
     const mains: { food_item_id: string; name: string; selected: boolean; quantity: number; portion_multiplier?: number; portion_unit?: string; note: string }[] = [];
     const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
@@ -292,6 +295,7 @@ export default function SummaryPage() {
           name: item.name,
           selected: hasContent,
           quantity: item.regular_quantity,
+          preparation_name: item.preparation_name,
           note: item.note,
         });
       } else if (item.category_id === sidesCategory?.id) {
@@ -362,22 +366,25 @@ export default function SummaryPage() {
 
   if (dataLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600">{LABELS.loading}</p>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="text-gray-600">{LABELS.loading}</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/order")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowRight className="w-5 h-5" />
@@ -844,5 +851,6 @@ export default function SummaryPage() {
         }
       `}</style>
     </div>
+    </AuthGuard>
   );
 }

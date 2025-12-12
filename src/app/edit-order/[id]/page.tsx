@@ -19,6 +19,7 @@ import { getOrderWithItems, updateOrder } from "@/lib/services/order-service";
 import { useSupabaseData, getFoodItemsByCategoryName } from "@/hooks/useSupabaseData";
 import { MeasurementType } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Types for form state (same as OrderForm)
 interface AddOnFormItem {
@@ -432,30 +433,34 @@ export default function EditOrderPage() {
   // Show loading state
   if (dataLoading || orderLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600">טוען הזמנה...</p>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="text-gray-600">טוען הזמנה...</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   // Show error state
   if (dataError || orderError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center text-red-500">
-          <p className="text-lg font-semibold mb-2">שגיאה</p>
-          <p>{dataError || orderError}</p>
-          <button
-            onClick={() => router.push("/summary")}
-            className="mt-4 text-blue-500 underline"
-          >
-            חזרה לסיכום
-          </button>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center text-red-500">
+            <p className="text-lg font-semibold mb-2">שגיאה</p>
+            <p>{dataError || orderError}</p>
+            <button
+              onClick={() => router.push("/summary")}
+              className="mt-4 text-blue-500 underline"
+            >
+              חזרה לסיכום
+            </button>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
@@ -894,6 +899,7 @@ export default function EditOrderPage() {
   };
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
@@ -1452,7 +1458,7 @@ export default function EditOrderPage() {
                       const measurementType = item.measurement_type || "none";
                       
                       // Calculate quantity based on measurement type for display
-                      let displayQuantity = itemState?.quantity || 0;
+                      const displayQuantity = itemState?.quantity || 0;
                       const useSizeMode = measurementType === "size";
                       const useLitersMode = measurementType === "liters";
                       
@@ -1650,5 +1656,6 @@ export default function EditOrderPage() {
         )}
       </div>
     </div>
+    </AuthGuard>
   );
 }

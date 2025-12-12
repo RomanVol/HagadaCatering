@@ -23,6 +23,7 @@ interface PrintOrderItem {
   quantity?: number;
   size_type?: "big" | "small" | null;
   variation_name?: string;
+  preparation_name?: string;
   // Variations for items like rice (אורז לבן, אורז ירוק, אשפלו, אדום, לבנוני)
   variations?: { name: string; size_big: number; size_small: number }[];
   // Add-ons with liters support (for כרוב אסייתי, רול)
@@ -787,7 +788,10 @@ function PrintItemRow({
         <span className="w-5 font-bold">{index}.</span>
         
         {/* Item name */}
-        <span className="flex-shrink-0 font-bold">{item.name}</span>
+        <span className="flex-shrink-0 font-bold">
+          {item.name}
+          {item.preparation_name && ` - ${item.preparation_name}`}
+        </span>
         
         {/* Hide button - hidden when printing */}
         <button

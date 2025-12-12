@@ -35,6 +35,7 @@ import {
   updateAddOn,
   deleteAddOn,
 } from "@/lib/services/admin-service";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Hebrew labels
 const LABELS = {
@@ -130,17 +131,32 @@ export default function AdminPage() {
   const [editingAddOnName, setEditingAddOnName] = React.useState("");
   const [editingAddOnMeasurementType, setEditingAddOnMeasurementType] = React.useState<MeasurementType>("liters");
 
+  const loadCategories = React.useCallback(async () => {
+    setIsLoading(true);
+    const data = await getCategories();
+    setCategories(data);
+    if (data.length > 0 && !selectedCategoryId) {
+      setSelectedCategoryId(data[0].id);
+    }
+    setIsLoading(false);
+  }, [selectedCategoryId]);
+
+  const loadFoodItems = React.useCallback(async (categoryId: string) => {
+    const data = await getFoodItems(categoryId);
+    setFoodItems(data);
+  }, []);
+
   // Load categories on mount
   React.useEffect(() => {
     loadCategories();
-  }, []);
+  }, [loadCategories]);
 
   // Load food items when category changes
   React.useEffect(() => {
     if (selectedCategoryId) {
       loadFoodItems(selectedCategoryId);
     }
-  }, [selectedCategoryId]);
+  }, [loadFoodItems, selectedCategoryId]);
 
   // Clear messages after delay
   React.useEffect(() => {
@@ -156,21 +172,6 @@ export default function AdminPage() {
       return () => clearTimeout(timer);
     }
   }, [error]);
-
-  const loadCategories = async () => {
-    setIsLoading(true);
-    const data = await getCategories();
-    setCategories(data);
-    if (data.length > 0 && !selectedCategoryId) {
-      setSelectedCategoryId(data[0].id);
-    }
-    setIsLoading(false);
-  };
-
-  const loadFoodItems = async (categoryId: string) => {
-    const data = await getFoodItems(categoryId);
-    setFoodItems(data);
-  };
 
   const handleAddItem = async () => {
     if (!newItemName.trim() || !selectedCategoryId) return;
@@ -517,22 +518,25 @@ export default function AdminPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600">{LABELS.loading}</p>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="text-gray-600">{LABELS.loading}</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/order")}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowRight className="w-5 h-5" />
@@ -1280,5 +1284,6 @@ export default function AdminPage() {
         </>
       )}
     </div>
+    </AuthGuard>
   );
 }

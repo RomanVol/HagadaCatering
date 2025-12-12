@@ -1861,7 +1861,7 @@ export function OrderForm() {
                       const measurementType = item.measurement_type || "none";
                       
                       // Calculate quantity based on measurement type for display
-                      let displayQuantity = itemState?.quantity || 0;
+                      const displayQuantity = itemState?.quantity || 0;
                       const useSizeMode = measurementType === "size";
                       const useLitersMode = measurementType === "liters";
                       
@@ -2089,7 +2089,7 @@ export function OrderForm() {
                       const measurementType = item.measurement_type || "none";
                       
                       // Calculate quantity based on measurement type for display
-                      let displayQuantity = itemState?.quantity || 0;
+                      const displayQuantity = itemState?.quantity || 0;
                       const useSizeMode = measurementType === "size";
                       const useLitersMode = measurementType === "liters";
                       

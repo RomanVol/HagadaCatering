@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PrintOrderPage, PrintOrderItem } from "@/components/print/PrintOrderPage";
 import { useSupabaseData } from "@/hooks/useSupabaseData";
 import { Loader2 } from "lucide-react";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 // Types for stored print data
 interface PrintSaladData {
@@ -85,39 +86,45 @@ export default function PrintPreviewPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
-          <p className="text-gray-600">טוען נתונים...</p>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+            <p className="text-gray-600">טוען נתונים...</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center text-red-500">
-          <p className="text-lg font-semibold mb-2">שגיאה בטעינת נתונים</p>
-          <p>{error}</p>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center text-red-500">
+            <p className="text-lg font-semibold mb-2">שגיאה בטעינת נתונים</p>
+            <p>{error}</p>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   if (!printData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg font-semibold mb-2">אין נתוני הזמנה להדפסה</p>
-          <button 
-            onClick={() => router.push("/")}
-            className="text-blue-500 hover:underline"
-          >
-            חזרה לדף ההזמנה
-          </button>
+      <AuthGuard>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-lg font-semibold mb-2">אין נתוני הזמנה להדפסה</p>
+            <button
+              onClick={() => router.push("/order")}
+              className="text-blue-500 hover:underline"
+            >
+              חזרה לדף ההזמנה
+            </button>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
@@ -168,6 +175,7 @@ export default function PrintPreviewPage() {
         category_name: "מנות ביניים",
         selected: item.selected,
         quantity: item.quantity || 0,
+        preparation_name: item.preparation_name,
         note: item.note,
         sort_order: sortOrder++,
         isVisible: true,
@@ -279,17 +287,19 @@ export default function PrintPreviewPage() {
   };
 
   return (
-    <PrintOrderPage
-      orderNumber={Math.floor(Math.random() * 10000)}
-      orderDate={formatDate(printData.order.date)}
-      orderTime={printData.order.time}
-      customerName={printData.customer.name}
-      customerPhone={printData.customer.phone}
-      customerAddress={printData.customer.address}
-      orderNotes={printData.order.notes}
-      items={printItems}
-      categories={categories}
-      onBack={() => router.push("/")}
-    />
+    <AuthGuard>
+      <PrintOrderPage
+        orderNumber={Math.floor(Math.random() * 10000)}
+        orderDate={formatDate(printData.order.date)}
+        orderTime={printData.order.time}
+        customerName={printData.customer.name}
+        customerPhone={printData.customer.phone}
+        customerAddress={printData.customer.address}
+        orderNotes={printData.order.notes}
+        items={printItems}
+        categories={categories}
+        onBack={() => router.push("/")}
+      />
+    </AuthGuard>
   );
 }

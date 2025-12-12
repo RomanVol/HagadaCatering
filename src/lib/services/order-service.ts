@@ -294,6 +294,10 @@ export interface OrderWithDetails {
       label: string;
       size: number;
     };
+    preparation?: {
+      id: string;
+      name: string;
+    };
   })[];
 }
 
@@ -334,7 +338,8 @@ export async function getOrdersByDateRange(
     .select(`
       *,
       food_item:food_items(id, name, category_id, has_liters),
-      liter_size:liter_sizes(id, label, size)
+      liter_size:liter_sizes(id, label, size),
+      preparation:food_item_preparations(id, name)
     `)
     .in("order_id", orderIds);
 
@@ -439,7 +444,7 @@ export async function getOrdersSummary(
 
   // Get add-on names and measurement_type separately if there are items with add_on_id
   const itemsWithAddOns = items?.filter(i => i.add_on_id) || [];
-  let addOnsMap = new Map<string, { name: string; measurement_type: string }>();
+  const addOnsMap = new Map<string, { name: string; measurement_type: string }>();
 
   if (itemsWithAddOns.length > 0) {
     const addOnIds = [...new Set(itemsWithAddOns.map(i => i.add_on_id))];
@@ -455,7 +460,7 @@ export async function getOrdersSummary(
 
   // Get variation names separately if there are items with variation_id
   const itemsWithVariations = items?.filter(i => i.variation_id) || [];
-  let variationsMap = new Map<string, string>();
+  const variationsMap = new Map<string, string>();
   
   if (itemsWithVariations.length > 0) {
     const variationIds = [...new Set(itemsWithVariations.map(i => i.variation_id))];
@@ -471,7 +476,7 @@ export async function getOrdersSummary(
 
   // Get preparation names separately if there are items with preparation_id
   const itemsWithPreparations = items?.filter(i => i.preparation_id) || [];
-  let preparationsMap = new Map<string, string>();
+  const preparationsMap = new Map<string, string>();
   
   if (itemsWithPreparations.length > 0) {
     const preparationIds = [...new Set(itemsWithPreparations.map(i => i.preparation_id))];
@@ -1126,4 +1131,3 @@ export async function updateOrder(
     };
   }
 }
-

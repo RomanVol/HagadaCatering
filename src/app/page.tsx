@@ -1,32 +1,28 @@
 "use client";
 
-import { OrderForm } from "@/components/orders/OrderForm";
-import Link from "next/link";
-import { BarChart3, Settings } from "lucide-react";
+import { useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Loader2 } from "lucide-react";
 
 export default function Home() {
+  useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        window.location.href = "/login";
+      } else {
+        window.location.href = "/order";
+      }
+    };
+
+    checkAuthAndRedirect();
+  }, []);
+
   return (
-    <div className="relative">
-      {/* Quick Navigation */}
-      <div className="fixed top-4 left-4 z-50 flex gap-2">
-        <Link
-          href="/summary"
-          className="bg-white shadow-lg rounded-full p-3 hover:bg-gray-50 transition-colors border border-gray-200"
-          title="סיכום הזמנות"
-        >
-          <BarChart3 className="w-6 h-6 text-blue-600" />
-        </Link>
-        <Link
-          href="/admin"
-          className="bg-white shadow-lg rounded-full p-3 hover:bg-gray-50 transition-colors border border-gray-200"
-          title="ניהול"
-        >
-          <Settings className="w-6 h-6 text-gray-600" />
-        </Link>
-      </div>
-      
-      <OrderForm />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
     </div>
   );
 }
-
