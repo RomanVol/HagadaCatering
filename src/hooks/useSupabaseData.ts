@@ -101,7 +101,11 @@ export function useSupabaseData(): UseSupabaseDataResult {
         }
 
         setCategories(categoriesData || []);
-        
+
+        // Find salads category to set proper default measurement_type
+        const saladsCategory = (categoriesData || []).find((c) => c.name_en === "salads");
+        const sidesCategory = (categoriesData || []).find((c) => c.name_en === "sides");
+
         // Add measurement_type fallback and attach add-ons, preparations, and variations
         const itemsWithExtras = (foodItemsData || []).map((item) => {
           const itemAddOns = addOnsData.filter(
@@ -113,10 +117,27 @@ export function useSupabaseData(): UseSupabaseDataResult {
           const itemVariations = variationsData.filter(
             (variation) => variation.parent_food_item_id === item.id
           );
+
+          // Determine measurement_type: use DB value first, then fallback based on category
+          let measurementType: MeasurementType;
+          if (item.measurement_type) {
+            // Use DB value if available (respect what's in the database)
+            measurementType = item.measurement_type as MeasurementType;
+          } else if (saladsCategory && item.category_id === saladsCategory.id) {
+            // Salads fallback to liters
+            measurementType = "liters";
+          } else if (sidesCategory && item.category_id === sidesCategory.id) {
+            // Sides fallback to size (ג/ק)
+            measurementType = "size";
+          } else if (item.has_liters) {
+            measurementType = "liters";
+          } else {
+            measurementType = "none";
+          }
+
           return {
             ...item,
-            measurement_type: (item.measurement_type || 
-              (item.has_liters ? "liters" : "none")) as MeasurementType,
+            measurement_type: measurementType,
             add_ons: itemAddOns.length > 0 ? itemAddOns : undefined,
             preparations: itemPreparations.length > 0 ? itemPreparations : undefined,
             variations: itemVariations.length > 0 ? itemVariations : undefined,

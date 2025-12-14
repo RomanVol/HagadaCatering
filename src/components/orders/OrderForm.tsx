@@ -14,7 +14,7 @@ import { SaladCard, SaladLiterPopup } from "./SaladSelector";
 import { FoodItemCard, FoodItemPopup } from "./FoodItemSelector";
 import { LABELS } from "@/lib/constants/labels";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Printer, Save, Loader2 } from "lucide-react";
+import { Printer, Save, Loader2, RotateCcw } from "lucide-react";
 import { saveOrder, SaveOrderInput } from "@/lib/services/order-service";
 import { useSupabaseData, getFoodItemsByCategoryName } from "@/hooks/useSupabaseData";
 import { MeasurementType } from "@/types";
@@ -144,6 +144,92 @@ export function OrderForm() {
     [foodItems, categories]
   );
 
+  const buildInitialFormState = React.useCallback((): OrderFormState => ({
+    customer_name: "",
+    phone: "",
+    order_date: new Date().toISOString().split("T")[0],
+    order_time: "",
+    address: "",
+    notes: "",
+    total_portions: 0,
+    price_per_portion: 0,
+    delivery_fee: 0,
+    salads: saladItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      measurement_type: item.measurement_type || "liters",
+      liters: literSizes.map((ls) => ({
+        liter_size_id: ls.id,
+        quantity: 0,
+      })),
+      size_big: 0,
+      size_small: 0,
+      regular_quantity: 0,
+      addOns: (item.add_ons || []).map((addon) => ({
+        addon_id: addon.id,
+        quantity: 0,
+        liters: literSizes.map((ls) => ({
+          liter_size_id: ls.id,
+          quantity: 0,
+        })),
+      })),
+      note: "",
+    })),
+    middle_courses: middleItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      quantity: 0,
+    })),
+    sides: sideItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      size_big: 0,
+      size_small: 0,
+      variations: (item.variations || []).map((v) => ({
+        variation_id: v.id,
+        size_big: 0,
+        size_small: 0,
+      })),
+    })),
+    mains: mainItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      quantity: 0,
+    })),
+    extras: extraItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      measurement_type: item.measurement_type || "none",
+      liters: literSizes.map((ls) => ({
+        liter_size_id: ls.id,
+        quantity: 0,
+      })),
+      size_big: 0,
+      size_small: 0,
+      quantity: 0,
+    })),
+    bakery: bakeryItems.map((item) => ({
+      food_item_id: item.id,
+      selected: false,
+      measurement_type: item.measurement_type || "none",
+      liters: literSizes.map((ls) => ({
+        liter_size_id: ls.id,
+        quantity: 0,
+      })),
+      size_big: 0,
+      size_small: 0,
+      quantity: 0,
+    })),
+  }), [saladItems, middleItems, sideItems, mainItems, extraItems, bakeryItems, literSizes]);
+
+  const buildInitialBulkLiters = React.useCallback(() => {
+    const initial: { [key: string]: number } = {};
+    literSizes.forEach((ls) => {
+      initial[ls.id] = 0;
+    });
+    return initial;
+  }, [literSizes]);
+
   // Initialize form state only after data is loaded
   const [formState, setFormState] = React.useState<OrderFormState>({
     customer_name: "",
@@ -180,80 +266,10 @@ export function OrderForm() {
   // Update form state when data loads (only once)
   React.useEffect(() => {
     if (!isDataInitialized && !isLoading && foodItems.length > 0 && literSizes.length > 0) {
-      setFormState((prev) => ({
-        ...prev,
-        salads: saladItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          measurement_type: item.measurement_type || "liters",
-          liters: literSizes.map((ls) => ({
-            liter_size_id: ls.id,
-            quantity: 0,
-          })),
-          size_big: 0,
-          size_small: 0,
-          regular_quantity: 0, // For measurement_type "none"
-          // Initialize add-ons if the item has any
-          addOns: (item.add_ons || []).map((addon) => ({
-            addon_id: addon.id,
-            quantity: 0, // Simple quantity for add-ons
-            liters: literSizes.map((ls) => ({
-              liter_size_id: ls.id,
-              quantity: 0,
-            })),
-          })),
-          note: "", // Free-text note for the salad
-        })),
-        middle_courses: middleItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          quantity: 0,
-        })),
-        sides: sideItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          size_big: 0,
-          size_small: 0,
-          // Initialize variations if the item has any
-          variations: (item.variations || []).map((v) => ({
-            variation_id: v.id,
-            size_big: 0,
-            size_small: 0,
-          })),
-        })),
-        mains: mainItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          quantity: 0,
-        })),
-        extras: extraItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          measurement_type: item.measurement_type || "none",
-          liters: literSizes.map((ls) => ({
-            liter_size_id: ls.id,
-            quantity: 0,
-          })),
-          size_big: 0,
-          size_small: 0,
-          quantity: 0,
-        })),
-        bakery: bakeryItems.map((item) => ({
-          food_item_id: item.id,
-          selected: false,
-          measurement_type: item.measurement_type || "none",
-          liters: literSizes.map((ls) => ({
-            liter_size_id: ls.id,
-            quantity: 0,
-          })),
-          size_big: 0,
-          size_small: 0,
-          quantity: 0,
-        })),
-      }));
+      setFormState(buildInitialFormState());
       setIsDataInitialized(true);
     }
-  }, [isDataInitialized, isLoading, foodItems, literSizes, saladItems, middleItems, sideItems, mainItems, extraItems, bakeryItems]);
+  }, [isDataInitialized, isLoading, foodItems, literSizes, buildInitialFormState]);
 
   // Restore form state if returning from print preview
   React.useEffect(() => {
@@ -278,13 +294,9 @@ export function OrderForm() {
   // Initialize bulk liters when liter sizes load
   React.useEffect(() => {
     if (literSizes.length > 0) {
-      const initial: { [key: string]: number } = {};
-      literSizes.forEach((ls) => {
-        initial[ls.id] = 0;
-      });
-      setBulkLiters(initial);
+      setBulkLiters(buildInitialBulkLiters());
     }
-  }, [literSizes]);
+  }, [literSizes, buildInitialBulkLiters]);
 
   // Track which salad has its liter options expanded (only one at a time)
   const [expandedSaladId, setExpandedSaladId] = React.useState<string | null>(null);
@@ -295,6 +307,19 @@ export function OrderForm() {
   const [expandedMainId, setExpandedMainId] = React.useState<string | null>(null);
   const [expandedExtraId, setExpandedExtraId] = React.useState<string | null>(null);
   const [expandedBakeryId, setExpandedBakeryId] = React.useState<string | null>(null);
+  const handleResetForm = () => {
+    setFormState(buildInitialFormState());
+    setBulkLiters(buildInitialBulkLiters());
+    setExpandedSaladId(null);
+    setExpandedMiddleId(null);
+    setExpandedSideId(null);
+    setExpandedMainId(null);
+    setExpandedExtraId(null);
+    setExpandedBakeryId(null);
+    setSaveError(null);
+    setIsSaving(false);
+    sessionStorage.removeItem("orderFormState");
+  };
 
   // Saving state - must be before early returns!
   const [isSaving, setIsSaving] = React.useState(false);
@@ -1257,10 +1282,7 @@ export function OrderForm() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <button className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-            <ArrowRight className="h-5 w-5" />
-            <span>{LABELS.actions.back}</span>
-          </button>
+          <div className="w-20" />
           <h1 className="text-xl font-bold">{LABELS.orderForm.newOrder}</h1>
           <div className="w-20" /> {/* Spacer for alignment */}
         </div>
@@ -1439,8 +1461,15 @@ export function OrderForm() {
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4">
+              {/* Warning if no liter sizes */}
+              {literSizes.length === 0 && (
+                <div className="mb-4 p-3 bg-yellow-100 rounded-lg text-yellow-800 text-sm">
+                  ⚠️ אין גדלי ליטרים בבסיס הנתונים - יש להוסיף אותם בלוח הניהול
+                </div>
+              )}
+
               {/* Bulk apply section */}
-              {saladCount > 0 && (
+              {saladCount > 0 && literSizes.length > 0 && (
                 <div className="mb-4 p-3 bg-gray-100 rounded-lg">
                   <div className="flex flex-col gap-3">
                     <span className="text-sm font-medium">
@@ -2291,6 +2320,15 @@ export function OrderForm() {
       {/* Fixed Bottom Action Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
         <div className="max-w-2xl mx-auto flex gap-3">
+          <Button 
+            variant="secondary" 
+            className="gap-2"
+            disabled={isSaving}
+            onClick={handleResetForm}
+          >
+            <RotateCcw className="h-5 w-5" />
+            הזמנה חדשה
+          </Button>
           <Button 
             onClick={handleSave} 
             className="flex-1 gap-2"
