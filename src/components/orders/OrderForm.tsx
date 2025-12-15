@@ -83,8 +83,10 @@ interface SidesFormItem {
 }
 
 interface OrderFormState {
+  customer_time: string; 
   customer_name: string;
   phone: string;
+  phone_alt: string;
   order_date: string;
   order_time: string;
   address: string;
@@ -145,8 +147,10 @@ export function OrderForm() {
   );
 
   const buildInitialFormState = React.useCallback((): OrderFormState => ({
+    customer_time: "",
     customer_name: "",
     phone: "",
+    phone_alt: "",
     order_date: new Date().toISOString().split("T")[0],
     order_time: "",
     address: "",
@@ -232,8 +236,10 @@ export function OrderForm() {
 
   // Initialize form state only after data is loaded
   const [formState, setFormState] = React.useState<OrderFormState>({
+    customer_time: "",
     customer_name: "",
     phone: "",
+    phone_alt: "",
     order_date: "", // Will be set on client side
     order_time: "",
     address: "",
@@ -332,6 +338,10 @@ export function OrderForm() {
   const mainsCount = formState.mains.filter((m) => m.selected).length;
   const extrasCount = formState.extras.filter((e) => e.selected).length;
   const bakeryCount = formState.bakery.filter((b) => b.selected).length;
+  const customerPhones = React.useMemo(
+    () => [formState.phone, formState.phone_alt].filter(Boolean).join(" • "),
+    [formState.phone, formState.phone_alt]
+  );
 
   // Show loading state
   if (isLoading) {
@@ -795,6 +805,7 @@ export function OrderForm() {
     setFormState((prev) => ({
       ...prev,
       salads: prev.salads.map((s) => {
+        if (s.measurement_type !== "liters") return s;
         // Only apply to salads that are selected but have no liters chosen yet
         const hasNoLitersSelected = s.liters.every((l) => l.quantity === 0);
         if (s.selected && hasNoLitersSelected) {
@@ -813,6 +824,11 @@ export function OrderForm() {
 
   // Handle print - saves order data to sessionStorage and navigates to print preview
   const handlePrint = () => {
+    const combinedNotes =
+      formState.phone_alt && formState.phone_alt.trim().length > 0
+        ? `${formState.notes ? `${formState.notes} | ` : ""}טלפון נוסף: ${formState.phone_alt.trim()}`
+        : formState.notes;
+
     // Build print data from form state
     const printData = {
       customer: {
@@ -823,7 +839,7 @@ export function OrderForm() {
       order: {
         date: formState.order_date,
         time: formState.order_time,
-        notes: formState.notes,
+        notes: combinedNotes,
       },
       salads: formState.salads.map(s => {
           const foodItem = saladItems.find(f => f.id === s.food_item_id);
@@ -1246,6 +1262,11 @@ export function OrderForm() {
       });
 
       // Save order
+      const combinedNotes =
+        formState.phone_alt && formState.phone_alt.trim().length > 0
+          ? `${formState.notes ? `${formState.notes} | ` : ""}טלפון נוסף: ${formState.phone_alt.trim()}`
+          : formState.notes;
+
       const result = await saveOrder({
         customer: {
           name: formState.customer_name,
@@ -1256,7 +1277,7 @@ export function OrderForm() {
           order_date: formState.order_date,
           order_time: formState.order_time,
           delivery_address: formState.address,
-          notes: formState.notes,
+          notes: combinedNotes,
         },
         items,
       });
@@ -1277,6 +1298,19 @@ export function OrderForm() {
     }
   };
 
+const getHebrewDay = (dateString: string): string => {
+  if (!dateString) return "";
+  
+  const date = new Date(dateString);
+  
+  // Safety check: if date is invalid, return empty string
+  if (isNaN(date.getTime())) return ""; 
+
+  // 'he-IL' sets the locale to Hebrew
+  // weekday: 'long' gives the full name (e.g., יום ראשון)
+  return new Intl.DateTimeFormat("he-IL", { weekday: "long" }).format(date);
+};
+const dayName = getHebrewDay(formState.order_date);
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -1302,9 +1336,11 @@ export function OrderForm() {
                 <span className="text-lg font-semibold">
                   {LABELS.orderForm.customerDetails}
                 </span>
-                {(formState.customer_name || formState.phone) && (
+                {(formState.customer_name || customerPhones) && (
                   <span className="text-sm text-gray-600 font-normal truncate max-w-[200px]">
-                    {formState.customer_name}{formState.customer_name && formState.phone ? " • " : ""}{formState.phone}
+                    {formState.customer_name}
+                    {formState.customer_name && customerPhones ? " • " : ""}
+                    {customerPhones}
                   </span>
                 )}
               </div>
@@ -1335,6 +1371,30 @@ export function OrderForm() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Input
+                    label="טלפון נוסף"
+                    type="tel"
+                    value={formState.phone_alt}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, phone_alt: e.target.value }))
+                    }
+                    placeholder="טלפון נוסף (אופציונלי)"
+                  />
+                        {/* 👇 NEW FIELD: Customer Time (זמן ללקוח) */}
+                  <Input
+                    label="זמן ללקוח"
+                    type="time"
+                    value={formState.customer_time || ""} 
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        customer_time: e.target.value,
+                      }))
+                    }
+                  />
+                {/* </div> */}
+                </div>
+                {/* <div className="grid grid-cols-2 gap-3"> */}
+                  {/* <Input
                     label={LABELS.orderForm.date}
                     type="date"
                     value={formState.order_date}
@@ -1356,7 +1416,52 @@ export function OrderForm() {
                       }))
                     }
                   />
+                </div> */}
+                <div className="grid grid-cols-2 gap-3">
+                
+                {/* WRAPPER: Needs 'relative' so we can position the text inside */}
+                <div className="relative w-full">
+                  <Input
+                    label={LABELS.orderForm.date}
+                    type="date"
+                    value={formState.order_date}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        order_date: e.target.value,
+                      }))
+                    }
+                    // IMPORTANT: Add padding to the left so the text doesn't cover the date numbers.
+                    // If your app is LTR, change this to paddingRight.
+                    // Using 'style' ensures it overrides internal CSS if Tailwind classes aren't passed through.
+                    style={{ paddingLeft: "80px" }} 
+                  />
+
+                  {/* THE HEBREW DAY TEXT */}
+                  {dayName && (
+                    <span 
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none"
+                      // In case the label pushes the input down, you might need to adjust 'top' slightly
+                      // pointer-events-none ensures clicks go through the text to the input
+                    >
+                      {dayName}
+                    </span>
+                  )}
                 </div>
+
+                {/* Time Input (Unchanged) */}
+                <Input
+                  label="זמן למטבח"
+                  type="time"
+                  value={formState.order_time}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      order_time: e.target.value,
+                    }))
+                  }
+                />
+              </div>
                 <Input
                   label={LABELS.orderForm.address}
                   value={formState.address}
