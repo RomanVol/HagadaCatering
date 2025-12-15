@@ -55,6 +55,8 @@ interface PrintOrderPageProps {
   orderNotes?: string;
   items: PrintOrderItem[];
   categories: Category[];
+  aggregatedLiters?: { sig: string; text: string; totalLiters: number | null; showTotal: boolean }[];
+  aggregatedLitersTotal?: number;
   onBack: () => void;
 }
 
@@ -76,6 +78,8 @@ export function PrintOrderPage({
   orderNotes,
   items: initialItems,
   categories,
+  aggregatedLiters = [],
+  aggregatedLitersTotal,
   onBack,
 }: PrintOrderPageProps) {
   // Group items by category and manage state
@@ -439,6 +443,20 @@ export function PrintOrderPage({
               <h2 className="font-bold text-center mb-2 bg-gray-100 py-1">
                 {sections[0]?.title}
               </h2>
+              {aggregatedLiters.length > 0 && (
+                <div className="mb-2 space-y-1 text-xs text-gray-800">
+                  {aggregatedLiters.map(({ sig, text, totalLiters, showTotal }) => (
+                    <div key={sig} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                      <span className="font-semibold">{text}</span>
+                      {showTotal && totalLiters !== null ? (
+                        <span className="text-gray-700">סה״כ {totalLiters}L</span>
+                      ) : (
+                        <span className="text-gray-500">—</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="space-y-0.5">
                 {sections[0]?.items.map((item, index) => (
                   <PrintItemRow

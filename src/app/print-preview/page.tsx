@@ -128,6 +128,68 @@ export default function PrintPreviewPage() {
     );
   }
 
+  // Build liter signatures to identify common liter selections across salads
+  const saladSignatures = printData.salads.map((salad) => {
+    const liters = salad.liters
+      .filter((l) => l.quantity > 0)
+      .map((l) => ({ label: l.label, quantity: l.quantity }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    if (liters.length === 0) {
+      return { id: salad.food_item_id, sig: null as string | null, totalLiters: 0, text: "" };
+    }
+    const sig = JSON.stringify(liters);
+    const totalLiters = liters.reduce((sum, l) => {
+      const parsed = parseFloat(String(l.label).replace(/[^\d.]/g, ""));
+      return sum + (isNaN(parsed) ? 0 : parsed * l.quantity);
+    }, 0);
+    const text = liters.map((l) => `${l.label} × ${l.quantity}`).join(", ");
+    return { id: salad.food_item_id, sig, totalLiters, text, liters };
+  });
+
+  const signatureSummary = new Map<string, { text: string; totalLiters: number; firstTotalLiters: number; count: number; liters: { label: string; quantity: number }[] }>();
+  saladSignatures.forEach(({ sig, totalLiters, text, liters }) => {
+    if (!sig) return;
+    const existing = signatureSummary.get(sig);
+    if (existing) {
+      existing.count += 1;
+      existing.totalLiters += totalLiters;
+    } else {
+      signatureSummary.set(sig, { text, totalLiters, firstTotalLiters: totalLiters, count: 1, liters });
+    }
+  });
+
+  // Show only common signatures (count > 1) that are non-trivial:
+  // trivial = single standard liter size (1.5/2.5/3/4.5) with quantity 1
+  const STANDARD_SINGLE = new Set(["1.5", "2.5", "3", "4.5"]);
+  const isTrivialSignature = (liters?: { label: string; quantity: number }[]) => {
+    if (!liters || liters.length !== 1) return false;
+    const parsedLabel = parseFloat(String(liters[0].label).replace(/[^\d.]/g, ""));
+    return STANDARD_SINGLE.has(parsedLabel.toString()) && liters[0].quantity === 1;
+  };
+
+  const commonSigs = new Set(
+    Array.from(signatureSummary.entries())
+      .filter(([, value]) => value.count > 1)
+      .map(([sig]) => sig)
+  );
+
+  const commonSignatureDisplay = Array.from(signatureSummary.entries())
+    .filter(([, value]) => value.count > 1)
+    .map(([sig, value]) => {
+      const trivial = isTrivialSignature(value.liters);
+      return {
+        sig,
+        text: value.text,
+        // Show only a single salad's liters total (firstTotalLiters), not multiplied by count
+        totalLiters: trivial ? null : parseFloat(value.firstTotalLiters.toFixed(2)),
+        showTotal: !trivial,
+      };
+    });
+
+  const totalCommonLiters = commonSignatureDisplay
+    .filter((entry) => entry.showTotal && entry.totalLiters !== null)
+    .reduce((sum, entry) => sum + (entry.totalLiters || 0), 0);
+
   // Convert stored data to PrintOrderItem format
   const createPrintItems = (): PrintOrderItem[] => {
     const items: PrintOrderItem[] = [];
@@ -142,6 +204,8 @@ export default function PrintPreviewPage() {
 
     // Add ALL salad items - one row per salad with all details
     printData.salads.forEach((salad) => {
+      const signatureForSalad = saladSignatures.find((s) => s.id === salad.food_item_id)?.sig;
+      const hideLiters = signatureForSalad ? commonSigs.has(signatureForSalad) : false;
       items.push({
         id: salad.food_item_id,
         food_item_id: salad.food_item_id,
@@ -149,7 +213,7 @@ export default function PrintPreviewPage() {
         category_id: saladsCategory?.id || "",
         category_name: "סלטים",
         selected: salad.selected,
-        liters: salad.liters.map(l => ({ label: l.label, quantity: l.quantity })),
+        liters: hideLiters ? [] : salad.liters.map(l => ({ label: l.label, quantity: l.quantity })),
         size_big: salad.size_big,
         size_small: salad.size_small,
         regular_quantity: salad.regular_quantity,
@@ -298,6 +362,8 @@ export default function PrintPreviewPage() {
         orderNotes={printData.order.notes}
         items={printItems}
         categories={categories}
+        aggregatedLiters={commonSignatureDisplay}
+        aggregatedLitersTotal={parseFloat(totalCommonLiters.toFixed(2))}
         onBack={() => router.push("/")}
       />
     </AuthGuard>
