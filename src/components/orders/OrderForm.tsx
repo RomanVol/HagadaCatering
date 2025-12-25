@@ -1262,22 +1262,22 @@ export function OrderForm() {
       });
 
       // Save order
-      const combinedNotes =
-        formState.phone_alt && formState.phone_alt.trim().length > 0
-          ? `${formState.notes ? `${formState.notes} | ` : ""}טלפון נוסף: ${formState.phone_alt.trim()}`
-          : formState.notes;
-
       const result = await saveOrder({
         customer: {
           name: formState.customer_name,
           phone: formState.phone,
+          phone_alt: formState.phone_alt || undefined,
           address: formState.address,
         },
         order: {
           order_date: formState.order_date,
           order_time: formState.order_time,
+          customer_time: formState.customer_time || undefined,
           delivery_address: formState.address,
-          notes: combinedNotes,
+          notes: formState.notes,
+          total_portions: formState.total_portions || undefined,
+          price_per_portion: formState.price_per_portion || undefined,
+          delivery_fee: formState.delivery_fee || undefined,
         },
         items,
       });

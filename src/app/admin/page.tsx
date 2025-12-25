@@ -940,7 +940,7 @@ export default function AdminPage() {
                     {LABELS.noPreparations}
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="\">
                     {preparations.map((prep, index) => (
                       <div
                         key={prep.id}

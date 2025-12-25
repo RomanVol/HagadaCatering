@@ -14,6 +14,10 @@ import {
   Package,
   Printer,
   Pencil,
+  MapPin,
+  Clock,
+  DollarSign,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -44,6 +48,43 @@ const LABELS = {
   total: "סה״כ",
   orders: "הזמנות",
   print: "הדפס",
+  today: "היום",
+  thisWeek: "השבוע",
+  nextWeek: "השבוע הבא",
+  customerName: "שם לקוח",
+  phone: "טלפון",
+};
+
+// Hebrew day names (Sunday = 0)
+const HEBREW_DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+
+// Get Hebrew day name from date
+const getHebrewDayName = (dateStr: string): string => {
+  const date = new Date(dateStr + "T00:00:00");
+  return HEBREW_DAYS[date.getDay()];
+};
+
+// Get start of week (Sunday) for a given date
+const getWeekStart = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+// Get end of week (Saturday) for a given date
+const getWeekEnd = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  d.setDate(d.getDate() + (6 - day));
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+// Format date to YYYY-MM-DD string
+const toDateString = (date: Date): string => {
+  return date.toISOString().split("T")[0];
 };
 
 type ViewMode = "orders" | "summary";
@@ -53,15 +94,13 @@ export default function SummaryPage() {
   const router = useRouter();
   const { categories, foodItems, literSizes, isLoading: dataLoading } = useSupabaseData();
 
-  // Date range state
-  const [fromDate, setFromDate] = React.useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
-  const [toDate, setToDate] = React.useState(() => {
-    const today = new Date();
-    return today.toISOString().split("T")[0];
-  });
+  // Date range state (optional - can be empty)
+  const [fromDate, setFromDate] = React.useState("");
+  const [toDate, setToDate] = React.useState("");
+
+  // Customer filter state
+  const [customerNameFilter, setCustomerNameFilter] = React.useState("");
+  const [phoneFilter, setPhoneFilter] = React.useState("");
 
   // Data state
   const [orders, setOrders] = React.useState<OrderWithDetails[]>([]);
@@ -78,16 +117,53 @@ export default function SummaryPage() {
   const [selectedCategories, setSelectedCategories] = React.useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
 
+  // Quick filter handlers
+  const setToday = () => {
+    const today = new Date();
+    const dateStr = toDateString(today);
+    setFromDate(dateStr);
+    setToDate(dateStr);
+  };
+
+  const setThisWeek = () => {
+    const today = new Date();
+    const weekStart = getWeekStart(today);
+    const weekEnd = getWeekEnd(today);
+    setFromDate(toDateString(weekStart));
+    setToDate(toDateString(weekEnd));
+  };
+
+  const setNextWeek = () => {
+    const today = new Date();
+    const nextWeekStart = new Date(today);
+    nextWeekStart.setDate(today.getDate() + (7 - today.getDay()));
+    const nextWeekEnd = new Date(nextWeekStart);
+    nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+    setFromDate(toDateString(nextWeekStart));
+    setToDate(toDateString(nextWeekEnd));
+  };
+
+  // Check if any filter is set
+  const hasAnyFilter = fromDate || toDate || customerNameFilter || phoneFilter;
+
   // Fetch orders when filter is applied
   const handleFilter = async () => {
+    if (!hasAnyFilter) {
+      return; // Don't search without any filters
+    }
+
     setIsLoading(true);
     setHasSearched(true);
 
     try {
-      console.log("Fetching orders from", fromDate, "to", toDate);
+      const filters = {
+        customerName: customerNameFilter || undefined,
+        phone: phoneFilter || undefined,
+      };
+      console.log("Fetching orders with filters:", { fromDate, toDate, ...filters });
       const [ordersData, summaryData] = await Promise.all([
-        getOrdersByDateRange(fromDate, toDate),
-        getOrdersSummary(fromDate, toDate),
+        getOrdersByDateRange(fromDate || undefined, toDate || undefined, filters),
+        getOrdersSummary(fromDate || undefined, toDate || undefined, filters),
       ]);
       console.log("Orders fetched:", ordersData.length, "orders");
       console.log("Summary fetched:", summaryData);
@@ -403,33 +479,114 @@ export default function SummaryPage() {
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Date Range Filter */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 print-hide">
+          {/* Quick Filter Buttons */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              onClick={setToday}
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+            >
+              {LABELS.today}
+            </button>
+            <button
+              onClick={setThisWeek}
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+            >
+              {LABELS.thisWeek}
+            </button>
+            <button
+              onClick={setNextWeek}
+              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+            >
+              {LABELS.nextWeek}
+            </button>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 space-y-1">
               <label className="text-sm font-medium text-gray-700">
                 {LABELS.fromDate}
               </label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full h-12 px-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className={cn(
+                    "w-full h-12 pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all",
+                    fromDate ? "pl-24" : "pl-4"
+                  )}
+                />
+                {fromDate && (
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-medium pointer-events-none">
+                    יום {getHebrewDayName(fromDate)}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex-1 space-y-1">
               <label className="text-sm font-medium text-gray-700">
                 {LABELS.toDate}
               </label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full h-12 px-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-              />
+              <div className="relative">
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className={cn(
+                    "w-full h-12 pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all",
+                    toDate ? "pl-24" : "pl-4"
+                  )}
+                />
+                {toDate && (
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-medium pointer-events-none">
+                    יום {getHebrewDayName(toDate)}
+                  </span>
+                )}
+              </div>
             </div>
+          </div>
+
+          {/* Name and Phone Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mt-4 pt-4 border-t border-gray-200">
+            <div className="flex-1 space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                {LABELS.customerName}
+              </label>
+              <div className="relative">
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={customerNameFilter}
+                  onChange={(e) => setCustomerNameFilter(e.target.value)}
+                  placeholder="חיפוש לפי שם..."
+                  className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex-1 space-y-1">
+              <label className="text-sm font-medium text-gray-700">
+                {LABELS.phone}
+              </label>
+              <div className="relative">
+                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <input
+                  type="tel"
+                  value={phoneFilter}
+                  onChange={(e) => setPhoneFilter(e.target.value)}
+                  placeholder="חיפוש לפי טלפון..."
+                  dir="ltr"
+                  className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-left"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Search Button */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
             <button
               onClick={handleFilter}
-              disabled={isLoading}
-              className="h-12 px-6 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center gap-2 disabled:opacity-50"
+              disabled={isLoading || !hasAnyFilter}
+              className="w-full h-12 px-6 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -485,6 +642,7 @@ export default function SummaryPage() {
           </div>
         )}
 
+
         {/* Orders List View */}
         {!isLoading && viewMode === "orders" && orders.length > 0 && (
           <div className="space-y-3">
@@ -499,7 +657,8 @@ export default function SummaryPage() {
                   className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors text-right"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
+                    {/* Order number and status */}
+                    <div className="flex items-center gap-3 mb-3">
                       <span className="text-sm font-bold text-blue-600">
                         #{order.order_number}
                       </span>
@@ -517,25 +676,91 @@ export default function SummaryPage() {
                         {order.status === "draft" && "טיוטה"}
                         {order.status === "cancelled" && "בוטל"}
                       </span>
+                      {/* Price display */}
+                      {order.price_per_portion && order.total_portions && (
+                        <span className="text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
+                          ₪{((order.total_portions * order.price_per_portion) + (order.delivery_fee || 0)).toLocaleString()}
+                        </span>
+                      )}
                     </div>
-                    <div className="flex flex-col gap-1">
+
+                    {/* Customer details grid */}
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      {/* Customer name */}
                       <div className="flex items-center gap-2 text-gray-800">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium">
+                        <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <span className="font-medium truncate">
                           {order.customer?.name || "ללא שם"}
                         </span>
                       </div>
+
+                      {/* Phone */}
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
-                        <Phone className="w-4 h-4 text-gray-400" />
+                        <Phone className="w-4 h-4 text-gray-400 flex-shrink-0" />
                         <span dir="ltr">{order.customer?.phone || "ללא טלפון"}</span>
                       </div>
+
+                      {/* Secondary phone */}
+                      {order.customer?.phone_alt && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <Phone className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                          <span dir="ltr">{order.customer.phone_alt}</span>
+                        </div>
+                      )}
+
+                      {/* Date */}
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
-                        <Calendar className="w-4 h-4 text-gray-400" />
-                        <span>
-                          {formatDate(order.order_date)}
-                          {order.order_time && ` | ${order.order_time}`}
-                        </span>
+                        <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <span>{formatDate(order.order_date)}</span>
                       </div>
+
+                      {/* Customer time */}
+                      {order.customer_time && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <Clock className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                          <span>ללקוח: {order.customer_time}</span>
+                        </div>
+                      )}
+
+                      {/* Kitchen time */}
+                      {order.order_time && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <Clock className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                          <span>למטבח: {order.order_time}</span>
+                        </div>
+                      )}
+
+                      {/* Address */}
+                      {order.delivery_address && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm col-span-2">
+                          <MapPin className="w-4 h-4 text-red-400 flex-shrink-0" />
+                          <span className="truncate">{order.delivery_address}</span>
+                        </div>
+                      )}
+
+                      {/* Portions and price details */}
+                      {order.total_portions && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <DollarSign className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          <span>{order.total_portions} מנות × ₪{order.price_per_portion}</span>
+                        </div>
+                      )}
+
+                      {/* Delivery fee */}
+                      {order.delivery_fee && order.delivery_fee > 0 && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <MapPin className="w-4 h-4 text-green-400 flex-shrink-0" />
+                          <span>משלוח: ₪{order.delivery_fee}</span>
+                        </div>
+                      )}
+
+                      {/* Notes preview */}
+                      {order.notes && (
+                        <div className="flex items-center gap-2 text-amber-600 text-sm col-span-2">
+                          <FileText className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                          <span className="truncate">{order.notes}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mr-4">

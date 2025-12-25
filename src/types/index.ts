@@ -73,6 +73,7 @@ export interface FoodItemVariation {
 export interface Customer {
   id: string;
   phone: string;
+  phone_alt: string | null;
   name: string | null;
   address: string | null;
   notes: string | null;
@@ -90,9 +91,14 @@ export interface Order {
   customer_id: string | null;
   order_date: string;
   order_time: string | null;
+  customer_time: string | null;
   delivery_address: string | null;
   notes: string | null;
   status: OrderStatus;
+  // Pricing fields
+  total_portions: number | null;
+  price_per_portion: number | null;
+  delivery_fee: number | null;
   created_at: string;
   updated_at: string;
   // Joined data

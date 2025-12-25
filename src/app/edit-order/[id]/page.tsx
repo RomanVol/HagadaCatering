@@ -77,10 +77,16 @@ interface SidesFormItem {
 interface OrderFormState {
   customer_name: string;
   phone: string;
+  phone_alt: string;
+  customer_time: string;
   order_date: string;
   order_time: string;
   address: string;
   notes: string;
+  // Pricing fields
+  total_portions: number;
+  price_per_portion: number;
+  delivery_fee: number;
   salads: SaladFormItem[];
   middle_courses: RegularFormItem[];
   sides: SidesFormItem[];
@@ -139,10 +145,15 @@ export default function EditOrderPage() {
   const [formState, setFormState] = React.useState<OrderFormState>({
     customer_name: "",
     phone: "",
+    phone_alt: "",
+    customer_time: "",
     order_date: "",
     order_time: "",
     address: "",
     notes: "",
+    total_portions: 0,
+    price_per_portion: 0,
+    delivery_fee: 0,
     salads: [],
     middle_courses: [],
     sides: [],
@@ -269,10 +280,16 @@ export default function EditOrderPage() {
           // Customer info
           newState.customer_name = order.customer?.name || "";
           newState.phone = order.customer?.phone || "";
+          newState.phone_alt = order.customer?.phone_alt || "";
+          newState.customer_time = order.customer_time || "";
           newState.address = order.delivery_address || "";
           newState.order_date = order.order_date || "";
           newState.order_time = order.order_time || "";
           newState.notes = order.notes || "";
+          // Pricing info
+          newState.total_portions = order.total_portions || 0;
+          newState.price_per_portion = order.price_per_portion || 0;
+          newState.delivery_fee = order.delivery_fee || 0;
 
           // Populate items
           if (items) {
@@ -866,13 +883,18 @@ export default function EditOrderPage() {
         customer: {
           name: formState.customer_name,
           phone: formState.phone,
+          phone_alt: formState.phone_alt || undefined,
           address: formState.address,
         },
         order: {
           order_date: formState.order_date,
           order_time: formState.order_time,
+          customer_time: formState.customer_time || undefined,
           delivery_address: formState.address,
           notes: formState.notes,
+          total_portions: formState.total_portions || undefined,
+          price_per_portion: formState.price_per_portion || undefined,
+          delivery_fee: formState.delivery_fee || undefined,
         },
         salads: formState.salads,
         middle_courses: formState.middle_courses,
@@ -952,13 +974,28 @@ export default function EditOrderPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Input
+                    label="טלפון נוסף"
+                    type="tel"
+                    value={formState.phone_alt}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, phone_alt: e.target.value }))}
+                    placeholder="טלפון נוסף (אופציונלי)"
+                  />
+                  <Input
+                    label="זמן ללקוח"
+                    type="time"
+                    value={formState.customer_time}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, customer_time: e.target.value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
                     label={LABELS.orderForm.date}
                     type="date"
                     value={formState.order_date}
                     onChange={(e) => setFormState((prev) => ({ ...prev, order_date: e.target.value }))}
                   />
                   <Input
-                    label={LABELS.orderForm.time}
+                    label="זמן למטבח"
                     type="time"
                     value={formState.order_time}
                     onChange={(e) => setFormState((prev) => ({ ...prev, order_time: e.target.value }))}
@@ -976,6 +1013,62 @@ export default function EditOrderPage() {
                   onChange={(e) => setFormState((prev) => ({ ...prev, notes: e.target.value }))}
                   placeholder="הערות להזמנה"
                 />
+
+                {/* Pricing Section */}
+                <div className="pt-3 border-t border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">תמחור</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input
+                      label="סה״כ מנות"
+                      type="number"
+                      min="0"
+                      value={formState.total_portions || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          total_portions: parseInt(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="0"
+                    />
+                    <Input
+                      label="מחיר בסיס למנה"
+                      type="number"
+                      min="0"
+                      value={formState.price_per_portion || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          price_per_portion: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="₪0"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <Input
+                      label="הובלה"
+                      type="number"
+                      min="0"
+                      value={formState.delivery_fee || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          delivery_fee: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      placeholder="₪0"
+                    />
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700">סה״כ לתשלום</label>
+                      <div className="h-12 px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
+                        <span className="text-lg font-bold text-green-600">
+                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </AccordionContent>
           </AccordionItem>

@@ -6,13 +6,18 @@ export interface SaveOrderInput {
   customer: {
     name: string;
     phone: string;
+    phone_alt?: string;
     address: string;
   };
   order: {
     order_date: string;
     order_time: string;
+    customer_time?: string;
     delivery_address: string;
     notes: string;
+    total_portions?: number;
+    price_per_portion?: number;
+    delivery_fee?: number;
   };
   items: {
     food_item_id: string;
@@ -40,7 +45,8 @@ export interface SaveOrderResult {
 export async function findOrCreateCustomer(
   phone: string,
   name: string,
-  address: string
+  address: string,
+  phone_alt?: string
 ): Promise<{ customer: Customer | null; error: string | null }> {
   const supabase = createClient();
 
@@ -63,6 +69,7 @@ export async function findOrCreateCustomer(
       .update({
         name: name || existingCustomer.name,
         address: address || existingCustomer.address,
+        phone_alt: phone_alt || existingCustomer.phone_alt || null,
       })
       .eq("id", existingCustomer.id)
       .select()
@@ -83,6 +90,7 @@ export async function findOrCreateCustomer(
       phone,
       name,
       address,
+      phone_alt: phone_alt || null,
     })
     .select()
     .single();
@@ -106,7 +114,8 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
     const { customer, error: customerError } = await findOrCreateCustomer(
       input.customer.phone,
       input.customer.name,
-      input.customer.address
+      input.customer.address,
+      input.customer.phone_alt
     );
 
     if (customerError || !customer) {
@@ -125,8 +134,12 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
         customer_id: customer.id,
         order_date: input.order.order_date,
         order_time: input.order.order_time || null,
+        customer_time: input.order.customer_time || null,
         delivery_address: input.order.delivery_address || null,
         notes: input.order.notes || null,
+        total_portions: input.order.total_portions || null,
+        price_per_portion: input.order.price_per_portion || null,
+        delivery_fee: input.order.delivery_fee || null,
         status: "active",
       })
       .select()
@@ -276,9 +289,14 @@ export interface OrderWithDetails {
   customer_id: string | null;
   order_date: string;
   order_time: string | null;
+  customer_time: string | null;
   delivery_address: string | null;
   notes: string | null;
   status: "draft" | "active" | "completed" | "cancelled";
+  // Pricing fields
+  total_portions: number | null;
+  price_per_portion: number | null;
+  delivery_fee: number | null;
   created_at: string;
   updated_at: string;
   customer: Customer | null;
@@ -302,25 +320,48 @@ export interface OrderWithDetails {
 }
 
 /**
- * Get orders by date range with customer and items
+ * Filter options for orders query
+ */
+export interface OrderFilters {
+  fromDate?: string;
+  toDate?: string;
+  customerName?: string;
+  phone?: string;
+}
+
+/**
+ * Get orders by filters (date range, customer name, phone) with customer and items
+ * All filters are optional and work independently
  */
 export async function getOrdersByDateRange(
-  fromDate: string,
-  toDate: string
+  fromDate?: string,
+  toDate?: string,
+  filters?: { customerName?: string; phone?: string }
 ): Promise<OrderWithDetails[]> {
   const supabase = createClient();
 
-  // Get orders in date range
-  const { data: orders, error: ordersError } = await supabase
+  // Build query with optional filters
+  let query = supabase
     .from("orders")
     .select(`
       *,
       customer:customers(*)
-    `)
-    .gte("order_date", fromDate)
-    .lte("order_date", toDate)
+    `);
+
+  // Apply date filters only if provided
+  if (fromDate) {
+    query = query.gte("order_date", fromDate);
+  }
+  if (toDate) {
+    query = query.lte("order_date", toDate);
+  }
+
+  // Order results
+  query = query
     .order("order_date", { ascending: true })
     .order("order_time", { ascending: true });
+
+  const { data: orders, error: ordersError } = await query;
 
   if (ordersError) {
     console.error("Error fetching orders:", ordersError);
@@ -348,10 +389,28 @@ export async function getOrdersByDateRange(
   }
 
   // Combine orders with their items
-  return orders.map((order) => ({
+  let result = orders.map((order) => ({
     ...order,
     items: (items || []).filter((item) => item.order_id === order.id),
   }));
+
+  // Apply customer name filter (client-side for joined table)
+  if (filters?.customerName) {
+    const searchName = filters.customerName.toLowerCase();
+    result = result.filter((order) =>
+      order.customer?.name?.toLowerCase().includes(searchName)
+    );
+  }
+
+  // Apply phone filter (client-side for joined table) - checks both phone and phone_alt
+  if (filters?.phone) {
+    result = result.filter((order) =>
+      order.customer?.phone?.includes(filters.phone!) ||
+      order.customer?.phone_alt?.includes(filters.phone!)
+    );
+  }
+
+  return result;
 }
 
 /**
@@ -403,8 +462,9 @@ export interface CategorySummary {
  * Includes: liter quantities, size quantities (ג/ק), add-ons separately, and variations separately
  */
 export async function getOrdersSummary(
-  fromDate: string,
-  toDate: string
+  fromDate?: string,
+  toDate?: string,
+  filters?: { customerName?: string; phone?: string }
 ): Promise<CategorySummary[]> {
   const supabase = createClient();
 
@@ -416,12 +476,19 @@ export async function getOrdersSummary(
 
   console.log("Categories:", categories?.length, "error:", catError);
 
-  // Get all order items in date range with joins
-  const { data: orders, error: ordersError } = await supabase
+  // Build orders query with optional date filters
+  let ordersQuery = supabase
     .from("orders")
-    .select("id")
-    .gte("order_date", fromDate)
-    .lte("order_date", toDate);
+    .select("id, customer:customers(name, phone)");
+
+  if (fromDate) {
+    ordersQuery = ordersQuery.gte("order_date", fromDate);
+  }
+  if (toDate) {
+    ordersQuery = ordersQuery.lte("order_date", toDate);
+  }
+
+  const { data: orders, error: ordersError } = await ordersQuery;
 
   console.log("Orders in range:", orders?.length, "error:", ordersError);
 
@@ -429,7 +496,26 @@ export async function getOrdersSummary(
     return [];
   }
 
-  const orderIds = orders.map((o) => o.id);
+  // Filter orders by customer name and phone (client-side for joined table)
+  let filteredOrders = orders;
+  if (filters?.customerName) {
+    const searchName = filters.customerName.toLowerCase();
+    filteredOrders = filteredOrders.filter((order) =>
+      (order.customer as { name?: string; phone?: string; phone_alt?: string } | null)?.name?.toLowerCase().includes(searchName)
+    );
+  }
+  if (filters?.phone) {
+    filteredOrders = filteredOrders.filter((order) => {
+      const customer = order.customer as { name?: string; phone?: string; phone_alt?: string } | null;
+      return customer?.phone?.includes(filters.phone!) || customer?.phone_alt?.includes(filters.phone!);
+    });
+  }
+
+  if (filteredOrders.length === 0) {
+    return [];
+  }
+
+  const orderIds = filteredOrders.map((o) => o.id);
 
   const { data: items, error: itemsError } = await supabase
     .from("order_items")
@@ -645,13 +731,18 @@ export interface UpdateOrderInput {
   customer: {
     name: string;
     phone: string;
+    phone_alt?: string;
     address: string;
   };
   order: {
     order_date: string;
     order_time: string;
+    customer_time?: string;
     delivery_address: string;
     notes: string;
+    total_portions?: number;
+    price_per_portion?: number;
+    delivery_fee?: number;
   };
   salads: {
     food_item_id: string;
@@ -722,7 +813,8 @@ export async function updateOrder(
     const { customer, error: customerError } = await findOrCreateCustomer(
       input.customer.phone,
       input.customer.name,
-      input.customer.address
+      input.customer.address,
+      input.customer.phone_alt
     );
 
     if (customerError || !customer) {
@@ -736,8 +828,12 @@ export async function updateOrder(
         customer_id: customer.id,
         order_date: input.order.order_date,
         order_time: input.order.order_time || null,
+        customer_time: input.order.customer_time || null,
         delivery_address: input.order.delivery_address || null,
         notes: input.order.notes || null,
+        total_portions: input.order.total_portions || null,
+        price_per_portion: input.order.price_per_portion || null,
+        delivery_fee: input.order.delivery_fee || null,
       })
       .eq("id", orderId)
       .select()
