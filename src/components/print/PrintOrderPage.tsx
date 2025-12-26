@@ -49,10 +49,17 @@ interface PrintOrderPageProps {
   orderNumber: number;
   orderDate: string;
   orderTime?: string;
+  customerTime?: string; // זמן ללקוח
+  kitchenTime?: string; // זמן למטבח
   customerName?: string;
   customerPhone: string;
+  customerPhone2?: string;
   customerAddress?: string;
   orderNotes?: string;
+  totalPortions?: number;
+  pricePerPortion?: number;
+  deliveryFee?: number;
+  totalPayment?: number;
   items: PrintOrderItem[];
   categories: Category[];
   aggregatedLiters?: { sig: string; text: string; totalLiters: number | null; showTotal: boolean }[];
@@ -72,10 +79,17 @@ export function PrintOrderPage({
   orderNumber,
   orderDate,
   orderTime,
+  customerTime,
+  kitchenTime,
   customerName,
   customerPhone,
+  customerPhone2,
   customerAddress,
   orderNotes,
+  totalPortions,
+  pricePerPortion,
+  deliveryFee,
+  totalPayment,
   items: initialItems,
   categories,
   aggregatedLiters = [],
@@ -412,8 +426,8 @@ export function PrintOrderPage({
 
       {/* Print Preview - A4 size */}
       <div className="max-w-4xl mx-auto p-4 print:p-0 print:max-w-none">
-        <div 
-          className="bg-white shadow-lg print:shadow-none mx-auto"
+        <div
+          className="bg-white shadow-lg print:shadow-none mx-auto relative"
           style={{
             width: "210mm",
             minHeight: "297mm",
@@ -421,18 +435,30 @@ export function PrintOrderPage({
           }}
         >
           {/* Header */}
-          <div className="flex justify-between items-start mb-4 border-b pb-2">
-            <div className="text-right">
-              <span className="text-lg font-bold">בס״ד</span>
+          <div className="mb-4 border-b pb-2">
+            {/* First row: בס״ד on right, date in center, name on left */}
+            <div className="flex justify-between items-start">
+              <div className="text-right">
+                <span className="text-lg font-bold">בס״ד</span>
+              </div>
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  {orderDate} {orderTime && `| ${orderTime}`}
+                </p>
+              </div>
+              <div className="text-left text-sm">
+                <div className="font-bold">{customerName}</div>
+              </div>
             </div>
-            <div className="text-center">
-              <h1 className="text-2xl font-bold">הזמנה מספר {orderNumber}</h1>
-              <p className="text-sm text-gray-600">
-                {orderDate} {orderTime && `| ${orderTime}`}
-              </p>
-            </div>
-            <div className="text-left">
-              <span className="text-lg font-bold">{orderNumber}</span>
+            {/* Second row: order number in center, phone numbers on left - same line */}
+            <div className="flex justify-between items-center mt-1">
+              <div className="flex-1"></div>
+              <div className="text-center flex-1">
+                <span className="font-bold text-xl">{orderNumber}</span>
+              </div>
+              <div className="text-left flex-1">
+                <span>{customerPhone}{customerPhone2 && ` | ${customerPhone2}`}</span>
+              </div>
             </div>
           </div>
 
@@ -462,7 +488,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="salads"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "salads" && dragState.dragOverIndex === index}
@@ -487,7 +512,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="middle_courses"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "middle_courses" && dragState.dragOverIndex === index}
@@ -510,7 +534,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="extras"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "extras" && dragState.dragOverIndex === index}
@@ -533,7 +556,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="bakery"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
@@ -559,7 +581,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="sides"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "sides" && dragState.dragOverIndex === index}
@@ -582,7 +603,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    index={index + 1}
                     sectionId="mains"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "mains" && dragState.dragOverIndex === index}
@@ -615,71 +635,65 @@ export function PrintOrderPage({
                   <div className="w-4 h-4 border border-gray-400"></div>
                 </div>
               </div>
+
+
             </div>
           </div>
 
-          {/* Customer Details - Bottom */}
-          <div className="mt-6 pt-4 border-t border-gray-300">
-            <div className="grid grid-cols-4 gap-4 text-sm" style={{ direction: "rtl" }}>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">שם:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[80px]">
-                  {customerName || ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">סה״כ מס׳ מנות:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[40px]"></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">שעה:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[40px]">
-                  {orderTime || ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">יום:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[40px]">
-                  {orderDate}
-                </span>
-              </div>
+          {/* Order Details - absolute bottom left corner */}
+          <div className="absolute bottom-[10mm] left-[10mm] text-sm space-y-1" style={{ direction: "rtl" }}>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">זמן ללקוח:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[60px]">
+                {customerTime || ""}
+              </span>
             </div>
-            
-            <div className="grid grid-cols-3 gap-4 text-sm mt-2" style={{ direction: "rtl" }}>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">טלפון:</span>
-                <span className="border-b border-gray-400 flex-1">
-                  {customerPhone}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">כתובת:</span>
-                <span className="border-b border-gray-400 flex-1">
-                  {customerAddress || ""}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">מחיר בסיס למנה:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[40px]"></span>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">זמן למטבח:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[60px]">
+                {kitchenTime || ""}
+              </span>
             </div>
-
-            <div className="grid grid-cols-2 gap-4 text-sm mt-2" style={{ direction: "rtl" }}>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">הובלה:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[60px]"></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold">סה״כ לתשלום:</span>
-                <span className="border-b border-gray-400 flex-1 min-w-[60px]"></span>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">סה״כ מס׳ מנות:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[40px]">
+                {totalPortions || ""}
+              </span>
             </div>
-
-            {/* Order notes */}
+            <div className="flex items-center gap-2">
+              <span className="font-bold">יום:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[60px]">
+                {orderDate}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">כתובת:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[80px]">
+                {customerAddress || ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">מחיר בסיס למנה:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[40px]">
+                {pricePerPortion ? `₪${pricePerPortion}` : ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">הובלה:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[40px]">
+                {deliveryFee ? `₪${deliveryFee}` : ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold">סה״כ לתשלום:</span>
+              <span className="font-bold border-b border-gray-400 min-w-[60px]">
+                {totalPayment ? `₪${totalPayment.toLocaleString()}` : ""}
+              </span>
+            </div>
             {orderNotes && (
-              <div className="mt-2 text-sm" style={{ direction: "rtl" }}>
-                <span className="font-bold">הערות: </span>
-                <span>{orderNotes}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold">הערות:</span>
+                <span className="font-bold">{orderNotes}</span>
               </div>
             )}
           </div>
@@ -711,7 +725,6 @@ export function PrintOrderPage({
 // Individual item row component
 interface PrintItemRowProps {
   item: PrintOrderItem;
-  index: number;
   sectionId: string;
   isDragging: boolean;
   isDragOver: boolean;
@@ -725,7 +738,6 @@ interface PrintItemRowProps {
 
 function PrintItemRow({
   item,
-  index,
   sectionId,
   isDragging,
   isDragOver,
@@ -739,50 +751,31 @@ function PrintItemRow({
   // Hidden placeholder (user manually hid this item)
   if (item.isPlaceholder && !item.isVisible) {
     return (
-      <div 
+      <div
         className={cn(
-          "flex items-center gap-1 py-0.5 text-xs min-h-[20px]",
+          "flex items-center gap-1 py-0.5 text-sm min-h-[20px]",
           "bg-gray-50 border border-dashed border-gray-300 rounded print:border-none print:bg-transparent"
         )}
       >
-        <span className="w-5 text-gray-400">{index}.</span>
         <span className="flex-1 text-gray-400 italic">—</span>
         <button
           onClick={onRestore}
           className="text-blue-500 hover:text-blue-700 px-1 print:hidden"
           title="שחזר פריט"
         >
-          <RotateCcw className="h-3 w-3" />
+          <RotateCcw className="h-4 w-4" />
         </button>
       </div>
     );
   }
 
-  // Unselected item - show as compact empty row with just the name (for all categories)
+  // Unselected item - don't show at all (return null to skip rendering)
   const isUnselected = item.selected === false;
   if (isUnselected) {
-    return (
-      <div
-        draggable
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDragEnd={onDragEnd}
-        className={cn(
-          "flex items-center gap-0.5 py-0 text-[9px] group cursor-move min-h-[14px] leading-tight",
-          isDragging && "opacity-50 bg-blue-100",
-          isDragOver && "border-t-2 border-blue-500"
-        )}
-      >
-        <GripVertical className="h-2 w-2 text-gray-300 print:hidden flex-shrink-0" />
-        <span className="w-4 text-gray-300">{index}.</span>
-        <span className="flex-1 truncate text-gray-300">{item.name}</span>
-        <span className="text-gray-200 text-[8px]">______</span>
-      </div>
-    );
+    return null;
   }
 
   const quantityStr = formatQuantity(item);
-  const hasQuantityOrNote = quantityStr || item.note;
 
   return (
     <div
@@ -791,47 +784,44 @@ function PrintItemRow({
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       className={cn(
-        "text-sm group cursor-move",
+        "text-lg group cursor-move",
         isDragging && "opacity-50 bg-blue-100",
         isDragOver && "border-t-2 border-blue-500",
         !item.isVisible && "opacity-40"
       )}
     >
-      {/* Main row - item name */}
-      <div className="flex items-center gap-1 leading-tight min-h-[18px]">
+      {/* Main row - item name and quantity on same line */}
+      <div className="flex items-center gap-3 leading-tight min-h-[28px]">
         {/* Drag handle - hidden when printing */}
-        <GripVertical className="h-3 w-3 text-gray-400 print:hidden flex-shrink-0" />
-        
-        {/* Item number */}
-        <span className="w-5 font-bold">{index}.</span>
-        
+        <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0" />
+
         {/* Item name */}
-        <span className="flex-shrink-0 font-bold">
+        <span className="flex-shrink-0 font-bold text-lg">
           {item.name}
           {item.preparation_name && ` - ${item.preparation_name}`}
         </span>
-        
+
+        {/* Quantity - same size as name */}
+        {quantityStr && (
+          <span className="text-gray-700 font-bold text-lg">{quantityStr}</span>
+        )}
+
         {/* Hide button - hidden when printing */}
         <button
           onClick={onHide}
           className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 px-1 print:hidden ml-auto"
           title="הסתר פריט"
         >
-          <X className="h-3 w-3" />
+          <X className="h-5 w-5" />
         </button>
       </div>
-      
-      {/* Second row for quantity and note - tightly coupled to the name row */}
-      {hasQuantityOrNote && (
-        <div className="flex flex-wrap items-center gap-1 mr-6 text-xs leading-tight -mt-0.5" dir="rtl">
-          {quantityStr && (
-            <span className="text-gray-700 font-semibold">{quantityStr}</span>
-          )}
-          {item.note && (
-            <span className="text-orange-600 italic">
-              ({item.note})
-            </span>
-          )}
+
+      {/* Second row for note only */}
+      {item.note && (
+        <div className="flex flex-wrap items-center gap-1 mr-6 text-base leading-tight" dir="rtl">
+          <span className="text-orange-600 italic font-medium">
+            ({item.note})
+          </span>
         </div>
       )}
     </div>

@@ -52,12 +52,18 @@ interface StoredPrintData {
   customer: {
     name: string;
     phone: string;
+    phone2?: string;
     address: string;
   };
   order: {
     date: string;
     time: string;
+    customerTime?: string;
     notes: string;
+    totalPortions?: number;
+    pricePerPortion?: number;
+    deliveryFee?: number;
+    totalPayment?: number;
   };
   salads: PrintSaladData[];
   middleCourses: PrintItemData[];
@@ -154,7 +160,7 @@ export default function PrintPreviewPage() {
       existing.count += 1;
       existing.totalLiters += totalLiters;
     } else {
-      signatureSummary.set(sig, { text, totalLiters, firstTotalLiters: totalLiters, count: 1, liters });
+      signatureSummary.set(sig, { text, totalLiters, firstTotalLiters: totalLiters, count: 1, liters: liters || [] });
     }
   });
 
@@ -268,25 +274,30 @@ export default function PrintPreviewPage() {
       });
     });
 
+    // Helper to calculate portion display: portionTotal = quantity
+    const calculatePortionDisplay = (quantity: number, multiplier?: number, unit?: string): string | undefined => {
+      if (!quantity || quantity === 0 || !multiplier || !unit) return undefined;
+      const total = quantity * multiplier;
+      // Format: total = quantity (e.g., "30 = 10" for 30 קציצות from 10 portions)
+      if (unit === "גרם") {
+        // For grams, show the total grams
+        if (total >= 1000) {
+          const kg = total / 1000;
+          return `${kg % 1 === 0 ? kg.toFixed(0) : kg.toFixed(1)}ק״ג = ${quantity}`;
+        }
+        return `${total} = ${quantity}`;
+      }
+      return `${total} = ${quantity}`;
+    };
+
     // Add mains items - all items with selected status, with calculated quantities
     printData.mains.forEach((item) => {
-      // Calculate display quantity based on portion_multiplier and portion_unit
-      let calculatedQuantity: string | undefined;
-      if (item.selected && item.quantity && item.quantity > 0 && item.portion_multiplier && item.portion_unit) {
-        const total = item.quantity * item.portion_multiplier;
-        if (item.portion_unit === "גרם") {
-          calculatedQuantity = `${total} גרם`;
-        } else if (item.portion_unit === "חצאים") {
-          // Display: quantity = total (e.g., "3 = 9")
-          calculatedQuantity = `${item.quantity} = ${total}`;
-        } else if (item.portion_unit === "קציצות") {
-          // Display: quantity = total (e.g., "5 = 10")
-          calculatedQuantity = `${item.quantity} = ${total}`;
-        } else {
-          calculatedQuantity = `${total} ${item.portion_unit}`;
-        }
-      }
-      
+      const calculatedQuantity = calculatePortionDisplay(
+        item.quantity || 0,
+        item.portion_multiplier,
+        item.portion_unit
+      );
+
       items.push({
         id: item.food_item_id,
         food_item_id: item.food_item_id,
@@ -304,8 +315,14 @@ export default function PrintPreviewPage() {
       });
     });
 
-    // Add extras items - all items with selected status
+    // Add extras items - all items with selected status, with calculated quantities
     printData.extras.forEach((item) => {
+      const calculatedQuantity = calculatePortionDisplay(
+        item.quantity || 0,
+        item.portion_multiplier,
+        item.portion_unit
+      );
+
       items.push({
         id: item.food_item_id,
         food_item_id: item.food_item_id,
@@ -314,6 +331,9 @@ export default function PrintPreviewPage() {
         category_name: "אקסטרות",
         selected: item.selected,
         quantity: item.quantity || 0,
+        portion_multiplier: item.portion_multiplier,
+        portion_unit: item.portion_unit,
+        calculatedQuantity,
         note: item.note,
         sort_order: sortOrder++,
         isVisible: true,
@@ -356,10 +376,17 @@ export default function PrintPreviewPage() {
         orderNumber={Math.floor(Math.random() * 10000)}
         orderDate={formatDate(printData.order.date)}
         orderTime={printData.order.time}
+        customerTime={printData.order.customerTime}
+        kitchenTime={printData.order.time}
         customerName={printData.customer.name}
         customerPhone={printData.customer.phone}
+        customerPhone2={printData.customer.phone2}
         customerAddress={printData.customer.address}
         orderNotes={printData.order.notes}
+        totalPortions={printData.order.totalPortions}
+        pricePerPortion={printData.order.pricePerPortion}
+        deliveryFee={printData.order.deliveryFee}
+        totalPayment={printData.order.totalPayment}
         items={printItems}
         categories={categories}
         aggregatedLiters={commonSignatureDisplay}
