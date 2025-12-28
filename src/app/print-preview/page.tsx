@@ -208,8 +208,50 @@ export default function PrintPreviewPage() {
     const extrasCategory = categories.find(c => c.name_en === "extras");
     const bakeryCategory = categories.find(c => c.name_en === "bakery");
 
+    // Define the specific order for salads (סלטים)
+    const saladsOrder = [
+      "מטבוחה",
+      "חציל מטוגן",
+      "חציל במיונז",
+      "חציל זעלוק",
+      "חציל בלאדי",
+      "סלק",
+      "גזר מבושל",
+      "גזר חי",
+      "פלפל חריף",
+      "חומוס",
+      "טחינה",
+      "ערבי",
+      "ירקות",
+      "חסה",
+      "כרוב",
+      "חמוצי הבית",
+      "זיתים",
+      "מלפפון בשמיר",
+      "קונסולו",
+      "כרוב אדום במיונז",
+      "כרוב אדום חמוץ",
+      "תירס ופטריות",
+      "פול",
+      "מיונז",
+      "טאבולה",
+      "ירוק",
+      "לימון צ׳רמלה",
+      "ירק פיצוחים",
+    ];
+
+    // Sort salads according to predefined order
+    const sortedSalads = [...printData.salads].sort((a, b) => {
+      const indexA = saladsOrder.findIndex(name => a.name.includes(name) || name.includes(a.name));
+      const indexB = saladsOrder.findIndex(name => b.name.includes(name) || name.includes(b.name));
+      // Items not in the list go to the end
+      const orderA = indexA === -1 ? 999 : indexA;
+      const orderB = indexB === -1 ? 999 : indexB;
+      return orderA - orderB;
+    });
+
     // Add ALL salad items - one row per salad with all details
-    printData.salads.forEach((salad) => {
+    sortedSalads.forEach((salad) => {
       const signatureForSalad = saladSignatures.find((s) => s.id === salad.food_item_id)?.sig;
       const hideLiters = signatureForSalad ? commonSigs.has(signatureForSalad) : false;
       items.push({
@@ -252,8 +294,33 @@ export default function PrintPreviewPage() {
       });
     });
 
+    // Define the specific order for sides (תוספות)
+    const sidesOrder = [
+      "אורז",
+      "תפו״א אפויים",
+      "זיתים מרוקאים",
+      "ארטישוק ופטריות",
+      "אפונה וגזר",
+      "אפונה וארטישוק",
+      "ירקות מוקפצים",
+      "שעועית ברוטב",
+      "שעועית מוקפצת",
+      "קוסקוס",
+      "ירקות לקוסקוס",
+    ];
+
+    // Sort sides according to predefined order
+    const sortedSides = [...printData.sides].sort((a, b) => {
+      const indexA = sidesOrder.findIndex(name => a.name.includes(name) || name.includes(a.name));
+      const indexB = sidesOrder.findIndex(name => b.name.includes(name) || name.includes(b.name));
+      // Items not in the list go to the end
+      const orderA = indexA === -1 ? 999 : indexA;
+      const orderB = indexB === -1 ? 999 : indexB;
+      return orderA - orderB;
+    });
+
     // Add sides items - all items with selected status
-    printData.sides.forEach((item) => {
+    sortedSides.forEach((item) => {
       items.push({
         id: item.food_item_id,
         food_item_id: item.food_item_id,
@@ -290,8 +357,32 @@ export default function PrintPreviewPage() {
       return `${total} = ${quantity}`;
     };
 
+    // Define the specific order for mains (עיקריות)
+    const mainsOrder = [
+      "כרעיים אפוי",
+      "חצאי כרעיים",
+      "פרגיות",
+      "שניצל מטוגן",
+      "חצאי שניצל",
+      "בשר ברוטב",
+      "לשון ברוטב",
+      "אסאדו",
+      "שיפודי קבב",
+      "שיפודי עוף",
+      "חזה עוף",
+    ];
+
+    // Sort mains according to predefined order
+    const sortedMains = [...printData.mains].sort((a, b) => {
+      const indexA = mainsOrder.findIndex(name => a.name.includes(name) || name.includes(a.name));
+      const indexB = mainsOrder.findIndex(name => b.name.includes(name) || name.includes(b.name));
+      const orderA = indexA === -1 ? 999 : indexA;
+      const orderB = indexB === -1 ? 999 : indexB;
+      return orderA - orderB;
+    });
+
     // Add mains items - all items with selected status, with calculated quantities
-    printData.mains.forEach((item) => {
+    sortedMains.forEach((item) => {
       const calculatedQuantity = calculatePortionDisplay(
         item.quantity || 0,
         item.portion_multiplier,
