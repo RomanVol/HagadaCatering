@@ -48,6 +48,26 @@ interface PrintItemData {
   calculatedQuantity?: string; // e.g., "6 קציצות (×3)", "500 גרם"
 }
 
+// Extra items from mains/sides/middle_courses with custom prices
+interface PrintExtraItemData {
+  id: string;
+  source_food_item_id: string;
+  source_category: 'mains' | 'sides' | 'middle_courses';
+  name: string;
+  quantity?: number;
+  size_big?: number;
+  size_small?: number;
+  variations?: {
+    variation_id: string;
+    name: string;
+    size_big: number;
+    size_small: number;
+  }[];
+  price: number;
+  note?: string;
+  preparation_name?: string;
+}
+
 interface StoredPrintData {
   customer: {
     name: string;
@@ -71,6 +91,7 @@ interface StoredPrintData {
   mains: PrintItemData[];
   extras: PrintItemData[];
   bakery: PrintItemData[];
+  extraItems?: PrintExtraItemData[];
 }
 
 export default function PrintPreviewPage() {
@@ -430,6 +451,34 @@ export default function PrintPreviewPage() {
         isVisible: true,
       });
     });
+
+    // Add extra items (from mains/sides/middle_courses with custom prices)
+    if (printData.extraItems && printData.extraItems.length > 0) {
+      printData.extraItems.forEach((extraItem) => {
+        items.push({
+          id: extraItem.id,
+          food_item_id: extraItem.source_food_item_id,
+          name: extraItem.name,
+          category_id: extrasCategory?.id || "",
+          category_name: "אקסטרות",
+          selected: true,
+          quantity: extraItem.quantity || 0,
+          size_big: extraItem.size_big,
+          size_small: extraItem.size_small,
+          variations: extraItem.variations?.map(v => ({
+            name: v.name,
+            size_big: v.size_big,
+            size_small: v.size_small,
+          })),
+          note: extraItem.note,
+          preparation_name: extraItem.preparation_name,
+          price: extraItem.price,
+          isExtraItem: true,
+          sort_order: sortOrder++,
+          isVisible: true,
+        });
+      });
+    }
 
     // Add bakery items - all items with selected status
     if (printData.bakery) {

@@ -34,6 +34,15 @@ function formatPortionTotal(quantity: number, multiplier?: number | null, unit?:
   return `${total} ${unit}`;
 }
 
+// Extra quantity data for items that have both regular and extra selections
+interface ExtraQuantityData {
+  quantity?: number;           // For mains/middle_courses
+  size_big?: number;           // For sides
+  size_small?: number;
+  variations?: { name: string; size_big: number; size_small: number }[];
+  price: number;               // Extra price
+}
+
 interface FoodItemCardProps {
   item: FoodItem;
   selected: boolean;
@@ -45,6 +54,7 @@ interface FoodItemCardProps {
   preparationName?: string;
   note?: string;
   variationQuantities?: VariationQuantity[]; // For items with variations like אורז
+  extraQuantity?: ExtraQuantityData; // For displaying extra quantity in red
   onSelect: () => void;
 }
 
@@ -59,6 +69,7 @@ export function FoodItemCard({
   preparationName,
   note,
   variationQuantities,
+  extraQuantity,
   onSelect,
 }: FoodItemCardProps) {
   // Check if this item has variations
@@ -107,6 +118,39 @@ export function FoodItemCard({
   const portionTotal = React.useMemo(() => {
     return formatPortionTotal(quantity, item.portion_multiplier, item.portion_unit);
   }, [quantity, item.portion_multiplier, item.portion_unit]);
+
+  // Build extra quantity summary (for items that have both regular and extra selections)
+  const extraSummary = React.useMemo(() => {
+    if (!extraQuantity) return null;
+
+    const parts: string[] = [];
+
+    // For variations
+    if (extraQuantity.variations?.length) {
+      extraQuantity.variations.forEach(v => {
+        const vParts: string[] = [];
+        if (v.size_big > 0) vParts.push(`${v.size_big}ג׳`);
+        if (v.size_small > 0) vParts.push(`${v.size_small}ק׳`);
+        if (vParts.length) parts.push(`${v.name}: ${vParts.join(' ')}`);
+      });
+    }
+    // For size mode
+    else if (extraQuantity.size_big || extraQuantity.size_small) {
+      if (extraQuantity.size_big) parts.push(`${extraQuantity.size_big}ג׳`);
+      if (extraQuantity.size_small) parts.push(`${extraQuantity.size_small}ק׳`);
+    }
+    // For regular quantity
+    else if (extraQuantity.quantity) {
+      parts.push(`×${extraQuantity.quantity}`);
+    }
+
+    if (parts.length === 0) return null;
+
+    return {
+      text: parts.join(' '),
+      price: extraQuantity.price,
+    };
+  }, [extraQuantity]);
 
   // Check if item has any selection
   const hasAnySelection = React.useMemo(() => {
@@ -188,6 +232,13 @@ export function FoodItemCard({
         </span>
       )}
 
+      {/* Extra quantity display (in red) */}
+      {extraSummary && (
+        <span className="text-xs text-red-600 font-bold mt-0.5">
+          {extraSummary.text} אקסטרה ₪{extraSummary.price}
+        </span>
+      )}
+
       {/* Portion total display (e.g., "= 30 קציצות") */}
       {selected && hasAnySelection && portionTotal && (
         <span className="text-xs text-green-600 font-medium">
@@ -227,6 +278,14 @@ interface FoodItemPopupProps {
   onNoteChange?: (note: string) => void;
   onVariationSizeChange?: (variationId: string, size: "big" | "small", quantity: number) => void;
   onClose: () => void;
+  // Extra item props
+  showExtraButton?: boolean;
+  onAddAsExtra?: (price: number, quantityData: {
+    quantity?: number;
+    size_big?: number;
+    size_small?: number;
+    variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+  }) => void;
 }
 
 export function FoodItemPopup({
@@ -243,15 +302,69 @@ export function FoodItemPopup({
   onNoteChange,
   onVariationSizeChange,
   onClose,
+  showExtraButton,
+  onAddAsExtra,
 }: FoodItemPopupProps) {
+  // Extra mode state
+  const [isExtraMode, setIsExtraMode] = React.useState(false);
+  const [extraPrice, setExtraPrice] = React.useState<number>(0);
+
+  // Local state for extra quantities (separate from regular item state)
+  const [extraQuantityLocal, setExtraQuantityLocal] = React.useState<number>(0);
+  const [extraSizeLocal, setExtraSizeLocal] = React.useState<{ big: number; small: number }>({ big: 0, small: 0 });
+  const [extraVariationsLocal, setExtraVariationsLocal] = React.useState<{ variation_id: string; size_big: number; size_small: number }[]>([]);
+
+  // Initialize extra variations when entering extra mode
+  React.useEffect(() => {
+    if (isExtraMode && item.variations && item.variations.length > 0 && extraVariationsLocal.length === 0) {
+      setExtraVariationsLocal(item.variations.map(v => ({ variation_id: v.id, size_big: 0, size_small: 0 })));
+    }
+  }, [isExtraMode, item.variations, extraVariationsLocal.length]);
+
+  // Handler for extra size in extra mode
+  const handleExtraSizeChange = (size: "big" | "small", qty: number) => {
+    setExtraSizeLocal(prev => ({
+      ...prev,
+      [size]: qty,
+    }));
+  };
+
+  // Handler for extra variations in extra mode
+  const handleExtraVariationSizeChange = (variationId: string, size: "big" | "small", qty: number) => {
+    setExtraVariationsLocal(prev => {
+      const existing = prev.find(v => v.variation_id === variationId);
+      if (existing) {
+        return prev.map(v =>
+          v.variation_id === variationId
+            ? { ...v, [size === "big" ? "size_big" : "size_small"]: qty }
+            : v
+        );
+      } else {
+        return [...prev, {
+          variation_id: variationId,
+          size_big: size === "big" ? qty : 0,
+          size_small: size === "small" ? qty : 0
+        }];
+      }
+    });
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
-      onQuantityChange(0);
+      if (isExtraMode) {
+        setExtraQuantityLocal(0);
+      } else {
+        onQuantityChange(0);
+      }
     } else {
       const num = parseInt(value, 10);
       if (!isNaN(num) && num >= 0) {
-        onQuantityChange(num);
+        if (isExtraMode) {
+          setExtraQuantityLocal(num);
+        } else {
+          onQuantityChange(num);
+        }
       }
     }
   };
@@ -319,10 +432,15 @@ export function FoodItemPopup({
           {/* Variations selector (for items like אורז with multiple types) */}
           {item.variations && item.variations.length > 0 && onVariationSizeChange ? (
             <div className="mb-6">
-              <span className="block text-gray-600 mb-3 text-center">בחר סוגים וכמויות:</span>
+              <span className="block text-gray-600 mb-3 text-center">
+                {isExtraMode ? "בחר כמויות לאקסטרה:" : "בחר סוגים וכמויות:"}
+              </span>
               <div className="space-y-3">
                 {item.variations.map((variation) => {
-                  const vq = variationQuantities?.find((v) => v.variation_id === variation.id);
+                  // Use local extra state or regular state based on mode
+                  const vq = isExtraMode
+                    ? extraVariationsLocal.find((v) => v.variation_id === variation.id)
+                    : variationQuantities?.find((v) => v.variation_id === variation.id);
                   const hasQuantity = (vq?.size_big || 0) > 0 || (vq?.size_small || 0) > 0;
                   return (
                     <VariationSelector
@@ -331,7 +449,13 @@ export function FoodItemPopup({
                       sizeBig={vq?.size_big || 0}
                       sizeSmall={vq?.size_small || 0}
                       isActive={hasQuantity}
-                      onSizeChange={(size, qty) => onVariationSizeChange(variation.id, size, qty)}
+                      onSizeChange={(size, qty) => {
+                        if (isExtraMode) {
+                          handleExtraVariationSizeChange(variation.id, size, qty);
+                        } else {
+                          onVariationSizeChange(variation.id, size, qty);
+                        }
+                      }}
                     />
                   );
                 })}
@@ -340,22 +464,36 @@ export function FoodItemPopup({
           ) : useSizeMode && onSizeChange ? (
             /* Size-based quantity selector (ג׳/ק׳) */
             <div className="mb-6">
-              <span className="block text-gray-600 mb-3 text-center">בחר כמויות:</span>
+              <span className="block text-gray-600 mb-3 text-center">
+                {isExtraMode ? "בחר כמויות לאקסטרה:" : "בחר כמויות:"}
+              </span>
               <div className="grid grid-cols-2 gap-4">
                 <SizeSelector
                   label="גדול"
                   symbol="ג׳"
-                  quantity={sizeQuantity?.big || 0}
-                  isActive={(sizeQuantity?.big || 0) > 0}
-                  onChange={(qty) => onSizeChange("big", qty)}
+                  quantity={isExtraMode ? extraSizeLocal.big : (sizeQuantity?.big || 0)}
+                  isActive={isExtraMode ? extraSizeLocal.big > 0 : (sizeQuantity?.big || 0) > 0}
+                  onChange={(qty) => {
+                    if (isExtraMode) {
+                      handleExtraSizeChange("big", qty);
+                    } else {
+                      onSizeChange("big", qty);
+                    }
+                  }}
                   color="blue"
                 />
                 <SizeSelector
                   label="קטן"
                   symbol="ק׳"
-                  quantity={sizeQuantity?.small || 0}
-                  isActive={(sizeQuantity?.small || 0) > 0}
-                  onChange={(qty) => onSizeChange("small", qty)}
+                  quantity={isExtraMode ? extraSizeLocal.small : (sizeQuantity?.small || 0)}
+                  isActive={isExtraMode ? extraSizeLocal.small > 0 : (sizeQuantity?.small || 0) > 0}
+                  onChange={(qty) => {
+                    if (isExtraMode) {
+                      handleExtraSizeChange("small", qty);
+                    } else {
+                      onSizeChange("small", qty);
+                    }
+                  }}
                   color="green"
                 />
               </div>
@@ -364,11 +502,19 @@ export function FoodItemPopup({
             /* Regular quantity selector */
             <>
               <div className="flex flex-col items-center gap-4 mb-6">
-                <span className="text-gray-600">בחר כמות:</span>
+                <span className="text-gray-600">
+                  {isExtraMode ? "בחר כמות לאקסטרה:" : "בחר כמות:"}
+                </span>
                 <div className="flex items-center gap-4">
                   <button
                     type="button"
-                    onClick={() => quantity > 0 && onQuantityChange(quantity - 1)}
+                    onClick={() => {
+                      if (isExtraMode) {
+                        if (extraQuantityLocal > 0) setExtraQuantityLocal(extraQuantityLocal - 1);
+                      } else {
+                        if (quantity > 0) onQuantityChange(quantity - 1);
+                      }
+                    }}
                     className="w-14 h-14 flex items-center justify-center rounded-xl bg-gray-100 hover:bg-gray-200 text-2xl font-bold transition-colors"
                   >
                     −
@@ -376,43 +522,76 @@ export function FoodItemPopup({
                   <input
                     type="number"
                     min="0"
-                    value={quantity}
+                    value={isExtraMode ? extraQuantityLocal : quantity}
                     onChange={handleInputChange}
-                    className="text-4xl font-bold w-24 text-center border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className={cn(
+                      "text-4xl font-bold w-24 text-center border-2 rounded-xl focus:outline-none py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                      isExtraMode
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-gray-200 focus:border-blue-500"
+                    )}
                   />
                   <button
                     type="button"
-                    onClick={() => onQuantityChange(quantity + 1)}
-                    className="w-14 h-14 flex items-center justify-center rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-2xl font-bold transition-colors"
+                    onClick={() => {
+                      if (isExtraMode) {
+                        setExtraQuantityLocal(extraQuantityLocal + 1);
+                      } else {
+                        onQuantityChange(quantity + 1);
+                      }
+                    }}
+                    className={cn(
+                      "w-14 h-14 flex items-center justify-center rounded-xl text-white text-2xl font-bold transition-colors",
+                      isExtraMode
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "bg-blue-500 hover:bg-blue-600"
+                    )}
                   >
                     +
                   </button>
                 </div>
 
                 {/* Portion total display */}
-                {item.portion_multiplier && item.portion_unit && quantity > 0 && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-center">
-                    <span className="text-green-700 font-medium">
-                      = {formatPortionTotal(quantity, item.portion_multiplier, item.portion_unit)}
+                {item.portion_multiplier && item.portion_unit && (isExtraMode ? extraQuantityLocal : quantity) > 0 && (
+                  <div className={cn(
+                    "border rounded-lg px-4 py-2 text-center",
+                    isExtraMode ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"
+                  )}>
+                    <span className={cn(
+                      "font-medium",
+                      isExtraMode ? "text-red-700" : "text-green-700"
+                    )}>
+                      = {formatPortionTotal(isExtraMode ? extraQuantityLocal : quantity, item.portion_multiplier, item.portion_unit)}
                     </span>
-                    <span className="text-green-600 text-sm mr-2">
-                      ({quantity} × {item.portion_multiplier} {item.portion_unit === 'גרם' ? 'גרם' : ''})
+                    <span className={cn(
+                      "text-sm mr-2",
+                      isExtraMode ? "text-red-600" : "text-green-600"
+                    )}>
+                      ({isExtraMode ? extraQuantityLocal : quantity} × {item.portion_multiplier} {item.portion_unit === 'גרם' ? 'גרם' : ''})
                     </span>
                   </div>
                 )}
               </div>
-              
+
               {/* Quick quantity buttons */}
               <div className="flex justify-center gap-2 mb-6">
                 {[1, 5, 10, 20, 50].map((num) => (
                   <button
                     key={num}
                     type="button"
-                    onClick={() => onQuantityChange(num)}
+                    onClick={() => {
+                      if (isExtraMode) {
+                        setExtraQuantityLocal(num);
+                      } else {
+                        onQuantityChange(num);
+                      }
+                    }}
                     className={cn(
                       "px-4 py-2 rounded-lg font-medium transition-colors",
-                      quantity === num
-                        ? "bg-blue-500 text-white"
+                      (isExtraMode ? extraQuantityLocal : quantity) === num
+                        ? isExtraMode
+                          ? "bg-red-500 text-white"
+                          : "bg-blue-500 text-white"
                         : "bg-gray-100 hover:bg-gray-200 text-gray-700"
                     )}
                   >
@@ -436,14 +615,114 @@ export function FoodItemPopup({
               dir="rtl"
             />
           </div>
-          
-          {/* Done button */}
+
+          {/* Extra mode toggle button */}
+          {showExtraButton && onAddAsExtra && !isExtraMode && (
+            <button
+              type="button"
+              onClick={() => setIsExtraMode(true)}
+              className="w-full h-10 mb-4 bg-red-100 text-red-600 font-semibold rounded-xl border-2 border-red-300 hover:bg-red-200 active:scale-[0.98] transition-all"
+            >
+              🏷️ אקסטרה
+            </button>
+          )}
+
+          {/* Extra price input - shown in extra mode */}
+          {isExtraMode && (
+            <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-xl">
+              <label className="block text-sm font-bold text-red-700 mb-2">
+                💰 מחיר אקסטרה (₪)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={extraPrice || ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    setExtraPrice(0);
+                  } else {
+                    const num = parseFloat(val);
+                    if (!isNaN(num) && num >= 0) {
+                      setExtraPrice(num);
+                    }
+                  }
+                }}
+                placeholder="הזן מחיר..."
+                className="w-full h-12 px-4 text-xl font-bold text-center border-2 border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                dir="ltr"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setIsExtraMode(false);
+                  setExtraPrice(0);
+                  // Reset local extra state
+                  setExtraQuantityLocal(0);
+                  setExtraSizeLocal({ big: 0, small: 0 });
+                  setExtraVariationsLocal([]);
+                }}
+                className="mt-2 text-sm text-gray-500 hover:text-gray-700 underline"
+              >
+                ביטול אקסטרה
+              </button>
+            </div>
+          )}
+
+          {/* Done button - changes style in extra mode */}
           <button
             type="button"
-            onClick={onClose}
-            className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+            onClick={() => {
+              if (isExtraMode && onAddAsExtra) {
+                // Build quantity data from LOCAL extra state (not regular state)
+                const quantityData: {
+                  quantity?: number;
+                  size_big?: number;
+                  size_small?: number;
+                  variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+                } = {};
+
+                if (item.variations && item.variations.length > 0) {
+                  // Item with variations - use LOCAL extra variations state
+                  quantityData.variations = extraVariationsLocal
+                    .filter(v => v.size_big > 0 || v.size_small > 0)
+                    .map(v => {
+                      const variation = item.variations?.find(iv => iv.id === v.variation_id);
+                      return {
+                        variation_id: v.variation_id,
+                        name: variation?.name || "",
+                        size_big: v.size_big,
+                        size_small: v.size_small,
+                      };
+                    });
+                } else if (useSizeMode) {
+                  // Size-based item (sides) - use LOCAL extra size state
+                  quantityData.size_big = extraSizeLocal.big;
+                  quantityData.size_small = extraSizeLocal.small;
+                } else {
+                  // Regular quantity item (mains, middle_courses) - use LOCAL extra quantity state
+                  quantityData.quantity = extraQuantityLocal;
+                }
+
+                onAddAsExtra(extraPrice, quantityData);
+                // Reset local extra state
+                setIsExtraMode(false);
+                setExtraPrice(0);
+                setExtraQuantityLocal(0);
+                setExtraSizeLocal({ big: 0, small: 0 });
+                setExtraVariationsLocal([]);
+              }
+              onClose();
+            }}
+            className={cn(
+              "w-full h-12 font-semibold rounded-xl active:scale-[0.98] transition-all",
+              isExtraMode
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : "bg-blue-500 text-white hover:bg-blue-600"
+            )}
           >
-            אישור
+            {isExtraMode ? "הוסף כאקסטרה" : "אישור"}
           </button>
         </div>
       </div>

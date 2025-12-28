@@ -800,6 +800,20 @@ export interface UpdateOrderInput {
     preparation_id?: string;
     note?: string;
   }[];
+  // Extra items from mains/sides/middle_courses with custom prices
+  extra_items?: {
+    id: string;
+    source_food_item_id: string;
+    source_category: 'mains' | 'sides' | 'middle_courses';
+    name: string;
+    quantity?: number;
+    size_big?: number;
+    size_small?: number;
+    variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+    price: number;
+    note?: string;
+    preparation_name?: string;
+  }[];
 }
 
 export async function updateOrder(
@@ -1216,6 +1230,64 @@ export async function updateOrder(
 
       if (insertError) {
         return { success: false, error: insertError.message };
+      }
+    }
+
+    // Handle extra items (from mains/sides/middle_courses with custom prices)
+    // First, delete existing extra_order_items for this order
+    const { error: deleteExtraError } = await supabase
+      .from("extra_order_items")
+      .delete()
+      .eq("order_id", orderId);
+
+    if (deleteExtraError) {
+      console.error("Error deleting extra order items:", deleteExtraError);
+      // Don't fail the whole operation, just log the error
+    }
+
+    // Insert new extra items if any
+    if (input.extra_items && input.extra_items.length > 0) {
+      for (const extra of input.extra_items) {
+        const { data: extraItem, error: extraError } = await supabase
+          .from("extra_order_items")
+          .insert({
+            order_id: orderId,
+            source_food_item_id: extra.source_food_item_id,
+            source_category: extra.source_category,
+            name: extra.name,
+            quantity: extra.quantity || 0,
+            size_big: extra.size_big || 0,
+            size_small: extra.size_small || 0,
+            price: extra.price,
+            note: extra.note || null,
+            preparation_name: extra.preparation_name || null,
+          })
+          .select()
+          .single();
+
+        if (extraError) {
+          console.error("Error inserting extra order item:", extraError);
+          continue;
+        }
+
+        // Insert variations if any
+        if (extra.variations && extra.variations.length > 0 && extraItem) {
+          const { error: variationError } = await supabase
+            .from("extra_order_item_variations")
+            .insert(
+              extra.variations.map(v => ({
+                extra_order_item_id: extraItem.id,
+                variation_id: v.variation_id,
+                name: v.name,
+                size_big: v.size_big,
+                size_small: v.size_small,
+              }))
+            );
+
+          if (variationError) {
+            console.error("Error inserting extra item variations:", variationError);
+          }
+        }
       }
     }
 

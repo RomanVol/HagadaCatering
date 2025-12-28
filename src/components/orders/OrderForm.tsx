@@ -69,6 +69,24 @@ interface ExtrasFormItem {
   note?: string;
 }
 
+// Extra item entry - for items added as extras from mains/sides/middle_courses
+interface ExtraItemEntry {
+  id: string;                      // Unique ID (uuid)
+  source_food_item_id: string;     // Original food item ID
+  source_category: 'mains' | 'sides' | 'middle_courses';
+  name: string;                    // Food item name
+
+  // Quantity (based on source category type)
+  quantity?: number;               // For mains/middle_courses
+  size_big?: number;               // For sides (ג׳)
+  size_small?: number;             // For sides (ק׳)
+  variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+
+  price: number;                   // Custom price (required)
+  note?: string;
+  preparation_name?: string;
+}
+
 // Sides use size-based quantities (ג/ק)
 interface SidesFormItem {
   food_item_id: string;
@@ -102,6 +120,8 @@ interface OrderFormState {
   mains: RegularFormItem[];
   extras: ExtrasFormItem[];
   bakery: ExtrasFormItem[];
+  // Extra items from mains/sides/middle_courses with custom prices
+  extra_items: ExtraItemEntry[];
 }
 
 export function OrderForm() {
@@ -224,6 +244,7 @@ export function OrderForm() {
       size_small: 0,
       quantity: 0,
     })),
+    extra_items: [],
   }), [saladItems, middleItems, sideItems, mainItems, extraItems, bakeryItems, literSizes]);
 
   const buildInitialBulkLiters = React.useCallback(() => {
@@ -253,7 +274,44 @@ export function OrderForm() {
     mains: [],
     extras: [],
     bakery: [],
+    extra_items: [],
   });
+
+  // Total extra price calculation - must be after formState declaration
+  const totalExtraPrice = React.useMemo(() => {
+    return formState.extra_items.reduce((sum, item) => sum + item.price, 0);
+  }, [formState.extra_items]);
+
+  // Helper to get extra quantity for a food item (for displaying on cards)
+  const getExtraForItem = React.useCallback((foodItemId: string) => {
+    const extras = formState.extra_items.filter(
+      e => e.source_food_item_id === foodItemId
+    );
+
+    if (extras.length === 0) return undefined;
+
+    // If single extra, return it directly
+    if (extras.length === 1) {
+      const e = extras[0];
+      return {
+        quantity: e.quantity,
+        size_big: e.size_big,
+        size_small: e.size_small,
+        variations: e.variations,
+        price: e.price,
+      };
+    }
+
+    // Multiple extras - aggregate quantities, sum prices
+    const totalPrice = extras.reduce((sum, e) => sum + e.price, 0);
+    return {
+      quantity: extras.reduce((sum, e) => sum + (e.quantity || 0), 0),
+      size_big: extras.reduce((sum, e) => sum + (e.size_big || 0), 0),
+      size_small: extras.reduce((sum, e) => sum + (e.size_small || 0), 0),
+      variations: extras[0].variations, // Use first item's variations
+      price: totalPrice,
+    };
+  }, [formState.extra_items]);
 
   // Set date on client side to avoid hydration mismatch
   const [isInitialized, setIsInitialized] = React.useState(false);
@@ -533,6 +591,54 @@ export function OrderForm() {
       ...prev,
       [category]: prev[category].map((item) =>
         item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
+  // Extra item handlers - for adding items as extras with custom prices
+  const handleAddAsExtra = (
+    sourceCategory: 'mains' | 'sides' | 'middle_courses',
+    foodItemId: string,
+    quantityData: {
+      quantity?: number;
+      size_big?: number;
+      size_small?: number;
+      variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+    },
+    price: number,
+    name: string,
+    preparation_name?: string,
+    note?: string
+  ) => {
+    const newEntry: ExtraItemEntry = {
+      id: crypto.randomUUID(),
+      source_food_item_id: foodItemId,
+      source_category: sourceCategory,
+      name,
+      ...quantityData,
+      price,
+      preparation_name,
+      note,
+    };
+
+    setFormState(prev => ({
+      ...prev,
+      extra_items: [...prev.extra_items, newEntry],
+    }));
+  };
+
+  const handleRemoveExtraItem = (id: string) => {
+    setFormState(prev => ({
+      ...prev,
+      extra_items: prev.extra_items.filter(e => e.id !== id),
+    }));
+  };
+
+  const handleEditExtraItemPrice = (id: string, newPrice: number) => {
+    setFormState(prev => ({
+      ...prev,
+      extra_items: prev.extra_items.map(e =>
+        e.id === id ? { ...e, price: newPrice } : e
       ),
     }));
   };
@@ -957,6 +1063,20 @@ export function OrderForm() {
             note: b.note,
           };
         }),
+      // Extra items from mains/sides/middle_courses with custom prices
+      extraItems: formState.extra_items.map(e => ({
+        id: e.id,
+        name: e.name,
+        source_category: e.source_category,
+        quantity: e.quantity,
+        size_big: e.size_big,
+        size_small: e.size_small,
+        variations: e.variations,
+        price: e.price,
+        note: e.note,
+        preparation_name: e.preparation_name,
+      })),
+      totalExtraPrice: totalExtraPrice,
     };
 
     // Store in sessionStorage
@@ -1746,6 +1866,7 @@ const dayName = getHebrewDay(formState.order_date);
                       quantity={itemState?.quantity || 0}
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
+                      extraQuantity={getExtraForItem(item.id)}
                       onSelect={() => {
                         // Only select if quantity > 0
                         if (!itemState?.selected && (itemState?.quantity || 0) > 0) {
@@ -1784,6 +1905,18 @@ const dayName = getHebrewDay(formState.order_date);
                       handleRegularNoteChange("middle_courses", expandedMiddleId, note)
                     }
                     onClose={() => setExpandedMiddleId(null)}
+                    showExtraButton={true}
+                    onAddAsExtra={(price, quantityData) => {
+                      handleAddAsExtra(
+                        'middle_courses',
+                        expandedMiddleId,
+                        quantityData,
+                        price,
+                        expandedItem.name,
+                        expandedState?.preparation_name,
+                        expandedState?.note
+                      );
+                    }}
                   />
                 );
               })()}
@@ -1832,6 +1965,7 @@ const dayName = getHebrewDay(formState.order_date);
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
                       variationQuantities={itemState?.variations}
+                      extraQuantity={getExtraForItem(item.id)}
                       onSelect={() => {
                         // Only select if size_big or size_small > 0
                         const isSelected = (itemState?.size_big || 0) > 0 || (itemState?.size_small || 0) > 0;
@@ -1879,6 +2013,18 @@ const dayName = getHebrewDay(formState.order_date);
                       handleSidesVariationSizeChange(expandedSideId, variationId, size, qty)
                     }
                     onClose={() => setExpandedSideId(null)}
+                    showExtraButton={true}
+                    onAddAsExtra={(price, quantityData) => {
+                      handleAddAsExtra(
+                        'sides',
+                        expandedSideId,
+                        quantityData,
+                        price,
+                        expandedItem.name,
+                        expandedState?.preparation_name,
+                        expandedState?.note
+                      );
+                    }}
                   />
                 );
               })()}
@@ -1920,6 +2066,7 @@ const dayName = getHebrewDay(formState.order_date);
                       quantity={itemState?.quantity || 0}
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
+                      extraQuantity={getExtraForItem(item.id)}
                       onSelect={() => {
                         // Only select if quantity > 0
                         if (!itemState?.selected && (itemState?.quantity || 0) > 0) {
@@ -1958,6 +2105,18 @@ const dayName = getHebrewDay(formState.order_date);
                       handleNoteChange("mains", expandedMainId, note)
                     }
                     onClose={() => setExpandedMainId(null)}
+                    showExtraButton={true}
+                    onAddAsExtra={(price, quantityData) => {
+                      handleAddAsExtra(
+                        'mains',
+                        expandedMainId,
+                        quantityData,
+                        price,
+                        expandedItem.name,
+                        expandedState?.preparation_name,
+                        expandedState?.note
+                      );
+                    }}
                   />
                 );
               })()}
@@ -1984,6 +2143,82 @@ const dayName = getHebrewDay(formState.order_date);
               </div>
             </AccordionTrigger>
             <AccordionContent className="px-4 relative">
+              {/* Extra Items from other categories (mains/sides/middle_courses) */}
+              {formState.extra_items.length > 0 && (
+                <div className="mb-4 p-3 bg-red-50 border-2 border-red-200 rounded-xl">
+                  <h4 className="text-sm font-bold text-red-700 mb-2">🏷️ פריטי אקסטרה</h4>
+                  <div className="space-y-2">
+                    {formState.extra_items.map((extraItem) => {
+                      // Format quantity display
+                      let qtyDisplay = "";
+                      if (extraItem.quantity && extraItem.quantity > 0) {
+                        qtyDisplay = `×${extraItem.quantity}`;
+                      } else if ((extraItem.size_big || 0) > 0 || (extraItem.size_small || 0) > 0) {
+                        const parts = [];
+                        if (extraItem.size_big) parts.push(`ג׳:${extraItem.size_big}`);
+                        if (extraItem.size_small) parts.push(`ק׳:${extraItem.size_small}`);
+                        qtyDisplay = parts.join(" ");
+                      } else if (extraItem.variations && extraItem.variations.length > 0) {
+                        qtyDisplay = extraItem.variations
+                          .filter(v => v.size_big > 0 || v.size_small > 0)
+                          .map(v => {
+                            const parts = [];
+                            if (v.size_big > 0) parts.push(`ג׳:${v.size_big}`);
+                            if (v.size_small > 0) parts.push(`ק׳:${v.size_small}`);
+                            return `${v.name} ${parts.join(" ")}`;
+                          })
+                          .join(" | ");
+                      }
+
+                      return (
+                        <div
+                          key={extraItem.id}
+                          className="flex items-center justify-between bg-white rounded-lg p-2 border border-red-200"
+                        >
+                          <div className="flex-1">
+                            <span className="font-bold text-red-700">{extraItem.name}</span>
+                            {qtyDisplay && (
+                              <span className="text-red-600 mr-2 text-sm">{qtyDisplay}</span>
+                            )}
+                            {extraItem.preparation_name && (
+                              <span className="text-gray-500 text-xs mr-1">({extraItem.preparation_name})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={extraItem.price || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val) && val >= 0) {
+                                  handleEditExtraItemPrice(extraItem.id, val);
+                                } else if (e.target.value === "") {
+                                  handleEditExtraItemPrice(extraItem.id, 0);
+                                }
+                              }}
+                              className="w-20 h-8 text-center text-sm font-bold border border-red-300 rounded bg-red-50 text-red-700"
+                              dir="ltr"
+                            />
+                            <span className="text-red-600 text-sm">₪</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveExtraItem(extraItem.id)}
+                              className="w-6 h-6 flex items-center justify-center rounded-full bg-red-100 hover:bg-red-200 text-red-600"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-red-200 flex justify-between items-center">
+                    <span className="font-bold text-red-700">סה״כ אקסטרות:</span>
+                    <span className="font-bold text-red-700 text-lg">₪{totalExtraPrice.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
               {extraItems.length > 0 ? (
                 <>
                   {/* Bento Grid */}

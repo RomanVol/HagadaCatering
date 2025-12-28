@@ -36,6 +36,9 @@ interface PrintOrderItem {
   sort_order: number;
   isVisible: boolean;
   isPlaceholder?: boolean;
+  // For extra items (from mains/sides/middle_courses with custom prices)
+  price?: number;
+  isExtraItem?: boolean;
 }
 
 interface PrintableSection {
@@ -817,14 +820,20 @@ function PrintItemRow({
           <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0 mt-0.5" />
 
           <div className="flex-1 min-w-0">
-            {/* Item name - stays together */}
-            <span className="font-bold text-lg whitespace-nowrap">
+            {/* Item name - stays together, red for extra items */}
+            <span className={cn(
+              "font-bold text-lg whitespace-nowrap",
+              item.isExtraItem && "text-red-600"
+            )}>
               {item.name}
               {item.preparation_name && ` - ${item.preparation_name}`}
             </span>
             {/* Main Quantity - on same line as name */}
             {quantityStr && (
-              <span className="text-gray-700 font-bold text-lg whitespace-nowrap mr-2"> {quantityStr}</span>
+              <span className={cn(
+                "font-bold text-lg whitespace-nowrap mr-2",
+                item.isExtraItem ? "text-red-600" : "text-gray-700"
+              )}> {quantityStr}</span>
             )}
           </div>
 
