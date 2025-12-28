@@ -305,16 +305,15 @@ export function PrintOrderPage({
     window.print();
   };
 
-  // Format quantity display - for salads: show all quantities in one line
-  // For items with add-ons (like כרוב אסייתי): show main item quantities AND each add-on separately
+  // Format MAIN quantity display (without add-ons) - stays on same line as item name
   const formatQuantity = (item: PrintOrderItem): string => {
     const parts: string[] = [];
-    
+
     // For items with pre-calculated quantity string (mains with portion_multiplier)
     if (item.calculatedQuantity) {
       return item.calculatedQuantity;
     }
-    
+
     // For items with liters (salads with liter measurement)
     if (item.liters && item.liters.length > 0) {
       const literParts = item.liters
@@ -324,10 +323,10 @@ export function PrintOrderPage({
         parts.push(literParts.join(" "));
       }
     }
-    
+
     // Check if item has variations - if so, only show variations (not size_big/size_small)
     const hasVariationsWithQuantity = item.variations && item.variations.some(v => v.size_big > 0 || v.size_small > 0);
-    
+
     // For items with size_big/size_small (but NOT if they have variations with quantities)
     // This is the MAIN item quantity (e.g., כרוב אסייתי itself)
     if (!hasVariationsWithQuantity) {
@@ -342,12 +341,12 @@ export function PrintOrderPage({
         parts.push(sizeParts.join(" "));
       }
     }
-    
+
     // For regular quantity
     if (item.regular_quantity && item.regular_quantity > 0) {
       parts.push(`×${item.regular_quantity}`);
     }
-    
+
     // For items with variations (like rice)
     if (item.variations && item.variations.length > 0) {
       item.variations.forEach(v => {
@@ -359,41 +358,47 @@ export function PrintOrderPage({
         }
       });
     }
-    
+
     // For simple quantity (mains, middle courses) - only if no calculatedQuantity
     if (item.quantity && item.quantity > 0 && !item.liters && !item.size_big && !item.size_small && !item.variations?.length) {
       parts.push(`×${item.quantity}`);
     }
-    
-    // For add-ons - show EACH add-on with its own quantities SEPARATELY
-    // Example: גזר מגורד (3L:2, 1.5L:1) | מלפפון מגורד (3L:1)
-    if (item.addOns && item.addOns.length > 0) {
-      item.addOns.forEach(ao => {
-        const aoParts: string[] = [];
-        
-        // Regular quantity for add-on
-        if (ao.quantity > 0) {
-          aoParts.push(`×${ao.quantity}`);
-        }
-        
-        // Liters for add-ons - each liter size separately
-        if (ao.liters && ao.liters.length > 0) {
-          const literParts = ao.liters
-            .filter(l => l.quantity > 0)
-            .map(l => `${l.label}:${l.quantity}`);
-          if (literParts.length > 0) {
-            aoParts.push(literParts.join(" "));
-          }
-        }
-        
-        // Only add if there are quantities
-        if (aoParts.length > 0) {
-          parts.push(`${ao.name} (${aoParts.join(" ")})`);
-        }
-      });
-    }
-    
+
+    // NOTE: Add-ons are NOT included here - they are displayed separately below the item
+
     return parts.join(" | ");
+  };
+
+  // Format add-ons display - shown on separate line below item
+  const formatAddOns = (item: PrintOrderItem): string[] => {
+    if (!item.addOns || item.addOns.length === 0) return [];
+
+    const addOnStrings: string[] = [];
+    item.addOns.forEach(ao => {
+      const aoParts: string[] = [];
+
+      // Regular quantity for add-on
+      if (ao.quantity > 0) {
+        aoParts.push(`×${ao.quantity}`);
+      }
+
+      // Liters for add-ons - each liter size separately
+      if (ao.liters && ao.liters.length > 0) {
+        const literParts = ao.liters
+          .filter(l => l.quantity > 0)
+          .map(l => `${l.label}:${l.quantity}`);
+        if (literParts.length > 0) {
+          aoParts.push(literParts.join(" "));
+        }
+      }
+
+      // Only add if there are quantities
+      if (aoParts.length > 0) {
+        addOnStrings.push(`${ao.name} ${aoParts.join(" ")}`);
+      }
+    });
+
+    return addOnStrings;
   };
 
   return (
@@ -435,11 +440,11 @@ export function PrintOrderPage({
           }}
         >
           {/* Header */}
-          <div className="mb-4 border-b pb-2">
+          <div className="mb-1 border-b pb-1">
             {/* First row: בס״ד on right, date in center, name on left */}
-            <div className="flex justify-between items-start">
+            <div className="flex justify-between items-center">
               <div className="text-right">
-                <span className="text-lg font-bold">בס״ד</span>
+                <span className="text-base font-bold">בס״ד</span>
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-600">
@@ -451,29 +456,29 @@ export function PrintOrderPage({
               </div>
             </div>
             {/* Second row: order number in center, phone numbers on left - same line */}
-            <div className="flex justify-between items-center mt-1">
+            <div className="flex justify-between items-center">
               <div className="flex-1"></div>
               <div className="text-center flex-1">
-                <span className="font-bold text-xl">{orderNumber}</span>
+                <span className="font-bold text-lg">{orderNumber}</span>
               </div>
               <div className="text-left flex-1">
-                <span>{customerPhone}{customerPhone2 && ` | ${customerPhone2}`}</span>
+                <span className="text-sm">{customerPhone}{customerPhone2 && ` | ${customerPhone2}`}</span>
               </div>
             </div>
           </div>
 
           {/* Main Content - 3 columns layout: Salads (wide) | Middle+Extras | Sides+Mains */}
-          <div className="grid grid-cols-3 gap-2 text-sm" style={{ direction: "rtl" }}>
+          <div className="grid grid-cols-3 gap-2 text-lg" style={{ direction: "rtl", height: "calc(297mm - 20mm - 60px)" }}>
             {/* Column 1: Salads - wider column */}
             <div className="border-l border-gray-300 pl-2">
-              <h2 className="font-bold text-center mb-2 bg-gray-100 py-1">
+              <h2 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xl">
                 {sections[0]?.title}
               </h2>
               {aggregatedLiters.length > 0 && (
-                <div className="mb-2 space-y-1 text-xs text-gray-800">
+                <div className="mb-2 space-y-0 text-lg text-gray-800">
                   {aggregatedLiters.map(({ sig, text, totalLiters, showTotal }) => (
-                    <div key={sig} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                      <span className="font-semibold">{text}</span>
+                    <div key={sig} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                      <span className="font-bold">{text}</span>
                       {showTotal && totalLiters !== null ? (
                         <span className="text-gray-700">סה״כ {totalLiters}L</span>
                       ) : (
@@ -483,7 +488,7 @@ export function PrintOrderPage({
                   ))}
                 </div>
               )}
-              <div className="space-y-0.5">
+              <div className="space-y-0">
                 {sections[0]?.items.map((item, index) => (
                   <PrintItemRow
                     key={item.id}
@@ -497,86 +502,96 @@ export function PrintOrderPage({
                     onDragOver={(e) => handleDragOver(e, index, "salads")}
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
                   />
                 ))}
               </div>
             </div>
 
-            {/* Column 2: Middle Courses + Extras */}
-            <div className="border-l border-gray-300 pl-2">
-              <h2 className="font-bold text-center mb-2 bg-gray-100 py-1">
-                {sections[1]?.title}
-              </h2>
-              <div className="space-y-0.5">
-                {sections[1]?.items.map((item, index) => (
-                  <PrintItemRow
-                    key={item.id}
-                    item={item}
-                    sectionId="middle_courses"
-                    isDragging={dragState.draggedItem?.id === item.id}
-                    isDragOver={dragState.dragOverSection === "middle_courses" && dragState.dragOverIndex === index}
-                    onHide={() => handleHideItem("middle_courses", item.id)}
-                    onRestore={() => handleRestoreItem("middle_courses", item.id)}
-                    onDragStart={() => handleDragStart(item, "middle_courses")}
-                    onDragOver={(e) => handleDragOver(e, index, "middle_courses")}
-                    onDragEnd={handleDragEnd}
-                    formatQuantity={formatQuantity}
-                  />
-                ))}
+            {/* Column 2: Middle Courses + Extras + Bakery (at bottom) */}
+            <div className="border-l border-gray-300 pl-2 flex flex-col h-full">
+              <div>
+                <h2 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xl">
+                  {sections[1]?.title}
+                </h2>
+                <div className="space-y-0">
+                  {sections[1]?.items.map((item, index) => (
+                    <PrintItemRow
+                      key={item.id}
+                      item={item}
+                      sectionId="middle_courses"
+                      isDragging={dragState.draggedItem?.id === item.id}
+                      isDragOver={dragState.dragOverSection === "middle_courses" && dragState.dragOverIndex === index}
+                      onHide={() => handleHideItem("middle_courses", item.id)}
+                      onRestore={() => handleRestoreItem("middle_courses", item.id)}
+                      onDragStart={() => handleDragStart(item, "middle_courses")}
+                      onDragOver={(e) => handleDragOver(e, index, "middle_courses")}
+                      onDragEnd={handleDragEnd}
+                      formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
+                    />
+                  ))}
+                </div>
+
+                {/* Extras below middle courses */}
+                <h2 className="font-bold text-center mb-1 mt-2 bg-gray-100 py-0.5 text-xl">
+                  {sections[4]?.title}
+                </h2>
+                <div className="space-y-0">
+                  {sections[4]?.items.map((item, index) => (
+                    <PrintItemRow
+                      key={item.id}
+                      item={item}
+                      sectionId="extras"
+                      isDragging={dragState.draggedItem?.id === item.id}
+                      isDragOver={dragState.dragOverSection === "extras" && dragState.dragOverIndex === index}
+                      onHide={() => handleHideItem("extras", item.id)}
+                      onRestore={() => handleRestoreItem("extras", item.id)}
+                      onDragStart={() => handleDragStart(item, "extras")}
+                      onDragOver={(e) => handleDragOver(e, index, "extras")}
+                      onDragEnd={handleDragEnd}
+                      formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
+                    />
+                  ))}
+                </div>
               </div>
 
-              {/* Extras below middle courses */}
-              <h2 className="font-bold text-center mb-2 mt-4 bg-gray-100 py-1">
-                {sections[4]?.title}
-              </h2>
-              <div className="space-y-0.5">
-                {sections[4]?.items.map((item, index) => (
-                  <PrintItemRow
-                    key={item.id}
-                    item={item}
-                    sectionId="extras"
-                    isDragging={dragState.draggedItem?.id === item.id}
-                    isDragOver={dragState.dragOverSection === "extras" && dragState.dragOverIndex === index}
-                    onHide={() => handleHideItem("extras", item.id)}
-                    onRestore={() => handleRestoreItem("extras", item.id)}
-                    onDragStart={() => handleDragStart(item, "extras")}
-                    onDragOver={(e) => handleDragOver(e, index, "extras")}
-                    onDragEnd={handleDragEnd}
-                    formatQuantity={formatQuantity}
-                  />
-                ))}
-              </div>
-
-              {/* Bakery below extras */}
-              <h2 className="font-bold text-center mb-2 mt-4 bg-gray-100 py-1">
-                {sections[5]?.title}
-              </h2>
-              <div className="space-y-0.5">
-                {sections[5]?.items.map((item, index) => (
-                  <PrintItemRow
-                    key={item.id}
-                    item={item}
-                    sectionId="bakery"
-                    isDragging={dragState.draggedItem?.id === item.id}
-                    isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
-                    onHide={() => handleHideItem("bakery", item.id)}
-                    onRestore={() => handleRestoreItem("bakery", item.id)}
-                    onDragStart={() => handleDragStart(item, "bakery")}
-                    onDragOver={(e) => handleDragOver(e, index, "bakery")}
-                    onDragEnd={handleDragEnd}
-                    formatQuantity={formatQuantity}
-                  />
-                ))}
+              {/* Bakery - pushed to bottom of column, items grow upward from bottom */}
+              <div className="mt-auto flex flex-col-reverse">
+                {/* Items in reverse order - first item at bottom, new items stack upward */}
+                <div className="flex flex-col-reverse space-y-reverse space-y-0">
+                  {sections[5]?.items.map((item, index) => (
+                    <PrintItemRow
+                      key={item.id}
+                      item={item}
+                      sectionId="bakery"
+                      isDragging={dragState.draggedItem?.id === item.id}
+                      isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
+                      onHide={() => handleHideItem("bakery", item.id)}
+                      onRestore={() => handleRestoreItem("bakery", item.id)}
+                      onDragStart={() => handleDragStart(item, "bakery")}
+                      onDragOver={(e) => handleDragOver(e, index, "bakery")}
+                      onDragEnd={handleDragEnd}
+                      formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
+                    />
+                  ))}
+                </div>
+                {/* Header above items */}
+                <h2 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xl">
+                  {sections[5]?.title}
+                </h2>
               </div>
             </div>
 
             {/* Column 3: Sides + Mains (combined) */}
             <div>
               {/* Sides at top */}
-              <h2 className="font-bold text-center mb-2 bg-gray-100 py-1">
+              <h2 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xl">
                 {sections[2]?.title}
               </h2>
-              <div className="space-y-0.5">
+              <div className="space-y-0">
                 {sections[2]?.items.map((item, index) => (
                   <PrintItemRow
                     key={item.id}
@@ -590,15 +605,16 @@ export function PrintOrderPage({
                     onDragOver={(e) => handleDragOver(e, index, "sides")}
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
                   />
                 ))}
               </div>
 
               {/* Mains below sides */}
-              <h2 className="font-bold text-center mb-2 mt-4 bg-gray-100 py-1">
+              <h2 className="font-bold text-center mb-1 mt-2 bg-gray-100 py-0.5 text-xl">
                 {sections[3]?.title}
               </h2>
-              <div className="space-y-0.5">
+              <div className="space-y-0">
                 {sections[3]?.items.map((item, index) => (
                   <PrintItemRow
                     key={item.id}
@@ -612,12 +628,13 @@ export function PrintOrderPage({
                     onDragOver={(e) => handleDragOver(e, index, "mains")}
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
+                    formatAddOns={formatAddOns}
                   />
                 ))}
               </div>
 
               {/* Portions checkboxes */}
-              <div className="mt-4 border-t pt-2">
+              <div className="mt-2 border-t pt-1">
                 <div className="flex items-center gap-2 text-xs">
                   <span>ק.</span>
                   <div className="w-4 h-4 border border-gray-400"></div>
@@ -734,6 +751,7 @@ interface PrintItemRowProps {
   onDragOver: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   formatQuantity: (item: PrintOrderItem) => string;
+  formatAddOns: (item: PrintOrderItem) => string[];
 }
 
 function PrintItemRow({
@@ -747,6 +765,7 @@ function PrintItemRow({
   onDragOver,
   onDragEnd,
   formatQuantity,
+  formatAddOns,
 }: PrintItemRowProps) {
   // Hidden placeholder (user manually hid this item)
   if (item.isPlaceholder && !item.isVisible) {
@@ -776,6 +795,7 @@ function PrintItemRow({
   }
 
   const quantityStr = formatQuantity(item);
+  const addOnsArr = formatAddOns(item);
 
   return (
     <div
@@ -791,34 +811,44 @@ function PrintItemRow({
       )}
     >
       {/* Main row - item name and quantity on same line */}
-      <div className="flex items-center gap-3 leading-tight min-h-[28px]">
-        {/* Drag handle - hidden when printing */}
-        <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0" />
+      <div className="leading-tight min-h-[28px]">
+        <div className="flex items-start gap-1">
+          {/* Drag handle - hidden when printing */}
+          <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0 mt-0.5" />
 
-        {/* Item name */}
-        <span className="flex-shrink-0 font-bold text-lg">
-          {item.name}
-          {item.preparation_name && ` - ${item.preparation_name}`}
-        </span>
+          <div className="flex-1 min-w-0">
+            {/* Item name - stays together */}
+            <span className="font-bold text-lg whitespace-nowrap">
+              {item.name}
+              {item.preparation_name && ` - ${item.preparation_name}`}
+            </span>
+            {/* Main Quantity - on same line as name */}
+            {quantityStr && (
+              <span className="text-gray-700 font-bold text-lg whitespace-nowrap mr-2"> {quantityStr}</span>
+            )}
+          </div>
 
-        {/* Quantity - same size as name */}
-        {quantityStr && (
-          <span className="text-gray-700 font-bold text-lg">{quantityStr}</span>
-        )}
-
-        {/* Hide button - hidden when printing */}
-        <button
-          onClick={onHide}
-          className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 px-1 print:hidden ml-auto"
-          title="הסתר פריט"
-        >
-          <X className="h-5 w-5" />
-        </button>
+          {/* Hide button - hidden when printing */}
+          <button
+            onClick={onHide}
+            className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 px-1 print:hidden flex-shrink-0"
+            title="הסתר פריט"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
-      {/* Second row for note only */}
+      {/* Add-ons row - displayed on separate line below item */}
+      {addOnsArr.length > 0 && (
+        <div className="mr-6 text-base leading-tight text-gray-700 font-bold">
+          {addOnsArr.join(" | ")}
+        </div>
+      )}
+
+      {/* Note row */}
       {item.note && (
-        <div className="flex flex-wrap items-center gap-1 mr-6 text-base leading-tight" dir="rtl">
+        <div className="mr-6 text-base leading-tight" dir="rtl">
           <span className="text-orange-600 italic font-medium">
             ({item.note})
           </span>

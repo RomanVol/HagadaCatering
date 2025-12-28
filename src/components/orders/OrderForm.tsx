@@ -824,26 +824,22 @@ export function OrderForm() {
 
   // Handle print - saves order data to sessionStorage and navigates to print preview
   const handlePrint = () => {
-    // Calculate total payment
-    const totalPayment = (formState.total_portions * formState.price_per_portion) + formState.delivery_fee;
+    const combinedNotes =
+      formState.phone_alt && formState.phone_alt.trim().length > 0
+        ? `${formState.notes ? `${formState.notes} | ` : ""}טלפון נוסף: ${formState.phone_alt.trim()}`
+        : formState.notes;
 
     // Build print data from form state
     const printData = {
       customer: {
         name: formState.customer_name,
         phone: formState.phone,
-        phone2: formState.phone_alt,
         address: formState.address,
       },
       order: {
         date: formState.order_date,
         time: formState.order_time,
-        customerTime: formState.customer_time,
-        notes: formState.notes,
-        totalPortions: formState.total_portions,
-        pricePerPortion: formState.price_per_portion,
-        deliveryFee: formState.delivery_fee,
-        totalPayment: totalPayment,
+        notes: combinedNotes,
       },
       salads: formState.salads.map(s => {
           const foodItem = saladItems.find(f => f.id === s.food_item_id);
