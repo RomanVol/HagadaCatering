@@ -8,12 +8,23 @@ export interface Category {
   created_at: string;
 }
 
-// Liter size types
+// Liter size types (global predefined sizes)
 export interface LiterSize {
   id: string;
   size: number;
   label: string;
   sort_order: number;
+  created_at: string;
+}
+
+// Custom liter size per food item
+export interface FoodItemCustomLiter {
+  id: string;
+  food_item_id: string;
+  size: number;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -39,6 +50,8 @@ export interface FoodItem {
   preparations?: FoodItemPreparation[];
   // Variations of this item (e.g., אורז לבן, אורז ירוק, אורז אדום)
   variations?: FoodItemVariation[];
+  // Custom liter sizes for this item (e.g., 1L for טחינה)
+  custom_liters?: FoodItemCustomLiter[];
 }
 
 // Add-on item that appears conditionally when parent item is selected
@@ -49,6 +62,7 @@ export interface FoodItemAddOn {
   measurement_type: MeasurementType;
   sort_order: number;
   is_active: boolean;
+  linked_food_item_id?: string | null;  // Link to existing food item for quantity merging
 }
 
 // Preparation option for food items (e.g., different cooking styles)

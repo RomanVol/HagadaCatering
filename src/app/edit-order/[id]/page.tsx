@@ -32,6 +32,7 @@ interface SaladFormItem {
   food_item_id: string;
   selected: boolean;
   measurement_type: MeasurementType;
+  isBulkApplied: boolean;
   liters: { liter_size_id: string; quantity: number }[];
   size_big: number;
   size_small: number;
@@ -227,6 +228,7 @@ export default function EditOrderPage() {
           food_item_id: item.id,
           selected: false,
           measurement_type: item.measurement_type || "liters",
+          isBulkApplied: false,
           liters: literSizes.map((ls) => ({
             liter_size_id: ls.id,
             quantity: 0,
@@ -590,16 +592,30 @@ export default function EditOrderPage() {
         s.food_item_id === foodItemId
           ? {
               ...s,
-              addOns: s.addOns.map((ao) =>
-                ao.addon_id === addonId
-                  ? {
-                      ...ao,
-                      liters: ao.liters.map((l) =>
-                        l.liter_size_id === literSizeId ? { ...l, quantity } : l
-                      ),
-                    }
-                  : ao
-              ),
+              addOns: s.addOns.map((ao) => {
+                if (ao.addon_id !== addonId) return ao;
+
+                // Check if liter entry exists
+                const existingIndex = ao.liters.findIndex(
+                  (l) => l.liter_size_id === literSizeId
+                );
+
+                if (existingIndex >= 0) {
+                  // Update existing entry
+                  return {
+                    ...ao,
+                    liters: ao.liters.map((l) =>
+                      l.liter_size_id === literSizeId ? { ...l, quantity } : l
+                    ),
+                  };
+                } else {
+                  // Add new entry for custom liter
+                  return {
+                    ...ao,
+                    liters: [...ao.liters, { liter_size_id: literSizeId, quantity }],
+                  };
+                }
+              }),
             }
           : s
       ),
@@ -619,6 +635,66 @@ export default function EditOrderPage() {
             }
           : s
       ),
+    }));
+  };
+
+  // Handler for merging add-on quantities into linked food item
+  const handleMergeAddOnToLinkedItem = (
+    linkedFoodItemId: string,
+    addOnQuantities: { quantity?: number; liters?: { liter_size_id: string; quantity: number }[] },
+    sourceSaladName: string
+  ) => {
+    // Find the linked food item to look up custom liter labels
+    const linkedItem = saladItems.find(s => s.id === linkedFoodItemId);
+
+    // Build note string
+    let noteText = `תוספת מ-${sourceSaladName}: `;
+    if (addOnQuantities.liters && addOnQuantities.liters.length > 0) {
+      const literParts = addOnQuantities.liters
+        .filter(l => l.quantity > 0)
+        .map(l => {
+          // Check for custom liter IDs (format: custom_<uuid>)
+          if (l.liter_size_id.startsWith("custom_")) {
+            const customId = l.liter_size_id.replace("custom_", "");
+            const customLiter = linkedItem?.custom_liters?.find(cl => cl.id === customId);
+            return customLiter ? `${customLiter.label}×${l.quantity}` : `×${l.quantity}`;
+          }
+          // Global liter size
+          const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
+          return literSize ? `${literSize.label}×${l.quantity}` : `×${l.quantity}`;
+        });
+      noteText += literParts.join(" ");
+    } else if (addOnQuantities.quantity && addOnQuantities.quantity > 0) {
+      noteText += `×${addOnQuantities.quantity}`;
+    }
+
+    // Update linked salad item - auto-select and merge quantities
+    setFormState(prev => ({
+      ...prev,
+      salads: prev.salads.map(salad => {
+        if (salad.food_item_id !== linkedFoodItemId) return salad;
+
+        // Merge liter quantities
+        let newLiters = [...salad.liters];
+        if (addOnQuantities.liters) {
+          addOnQuantities.liters.forEach(addOnLiter => {
+            if (addOnLiter.quantity > 0) {
+              const idx = newLiters.findIndex(l => l.liter_size_id === addOnLiter.liter_size_id);
+              if (idx >= 0) {
+                newLiters[idx] = { ...newLiters[idx], quantity: newLiters[idx].quantity + addOnLiter.quantity };
+              } else {
+                newLiters.push({ liter_size_id: addOnLiter.liter_size_id, quantity: addOnLiter.quantity });
+              }
+            }
+          });
+        }
+
+        // Append note
+        const currentNote = salad.note || "";
+        const newNote = currentNote ? `${currentNote} | ${noteText}` : noteText;
+
+        return { ...salad, selected: true, liters: newLiters, note: newNote };
+      }),
     }));
   };
 
@@ -675,6 +751,7 @@ export default function EditOrderPage() {
   };
 
   // Extra item handlers - for adding items as extras with custom prices
+  // New behavior: merge extras into existing items with combined quantities and notes
   const handleAddAsExtra = (
     sourceCategory: 'mains' | 'sides' | 'middle_courses',
     foodItemId: string,
@@ -689,21 +766,83 @@ export default function EditOrderPage() {
     preparation_name?: string,
     note?: string
   ) => {
-    const newEntry: ExtraItemEntry = {
-      id: crypto.randomUUID(),
-      source_food_item_id: foodItemId,
-      source_category: sourceCategory,
-      name,
-      ...quantityData,
-      price,
-      preparation_name,
-      note,
-    };
+    // Build extra note string
+    let extraNoteText = "אקסטרה: ";
+    if (quantityData.quantity && quantityData.quantity > 0) {
+      extraNoteText += `×${quantityData.quantity}`;
+    } else if ((quantityData.size_big || 0) > 0 || (quantityData.size_small || 0) > 0) {
+      const parts = [];
+      if (quantityData.size_big) parts.push(`ג׳:${quantityData.size_big}`);
+      if (quantityData.size_small) parts.push(`ק׳:${quantityData.size_small}`);
+      extraNoteText += parts.join(" ");
+    } else if (quantityData.variations && quantityData.variations.length > 0) {
+      extraNoteText += quantityData.variations
+        .filter(v => v.size_big > 0 || v.size_small > 0)
+        .map(v => {
+          const parts = [];
+          if (v.size_big > 0) parts.push(`ג׳:${v.size_big}`);
+          if (v.size_small > 0) parts.push(`ק׳:${v.size_small}`);
+          return `${v.name} ${parts.join(" ")}`;
+        })
+        .join(" | ");
+    }
+    extraNoteText += ` ₪${price}`;
 
-    setFormState(prev => ({
-      ...prev,
-      extra_items: [...prev.extra_items, newEntry],
-    }));
+    // Update the appropriate category's item - auto-select and combine quantities
+    if (sourceCategory === 'mains') {
+      setFormState(prev => ({
+        ...prev,
+        mains: prev.mains.map(item => {
+          if (item.food_item_id !== foodItemId) return item;
+          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
+          const currentNote = item.note || "";
+          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
+          return { ...item, selected: true, quantity: newQuantity, note: newNote };
+        }),
+      }));
+    } else if (sourceCategory === 'sides') {
+      setFormState(prev => ({
+        ...prev,
+        sides: prev.sides.map(item => {
+          if (item.food_item_id !== foodItemId) return item;
+          const newSizeBig = (item.size_big || 0) + (quantityData.size_big || 0);
+          const newSizeSmall = (item.size_small || 0) + (quantityData.size_small || 0);
+          // Merge variations if applicable
+          let newVariations = item.variations || [];
+          if (quantityData.variations && quantityData.variations.length > 0) {
+            quantityData.variations.forEach(extraVar => {
+              const existingIdx = newVariations.findIndex(v => v.variation_id === extraVar.variation_id);
+              if (existingIdx >= 0) {
+                newVariations = newVariations.map((v, idx) =>
+                  idx === existingIdx
+                    ? { ...v, size_big: v.size_big + extraVar.size_big, size_small: v.size_small + extraVar.size_small }
+                    : v
+                );
+              } else {
+                newVariations = [...newVariations, extraVar];
+              }
+            });
+          }
+          const currentNote = item.note || "";
+          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
+          return {
+            ...item, selected: true, size_big: newSizeBig, size_small: newSizeSmall,
+            variations: newVariations.length > 0 ? newVariations : undefined, note: newNote
+          };
+        }),
+      }));
+    } else if (sourceCategory === 'middle_courses') {
+      setFormState(prev => ({
+        ...prev,
+        middle_courses: prev.middle_courses.map(item => {
+          if (item.food_item_id !== foodItemId) return item;
+          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
+          const currentNote = item.note || "";
+          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
+          return { ...item, selected: true, quantity: newQuantity, note: newNote };
+        }),
+      }));
+    }
   };
 
   const handleRemoveExtraItem = (id: string) => {
@@ -1244,6 +1383,8 @@ export default function EditOrderPage() {
                     onAddOnQuantityChange={(addonId, qty) => handleAddOnQuantityChange(expandedSaladId, addonId, qty)}
                     onNoteChange={(note) => handleSaladNoteChange(expandedSaladId, note)}
                     onClose={() => setExpandedSaladId(null)}
+                    onMergeAddOnToLinkedItem={handleMergeAddOnToLinkedItem}
+                    allSaladItems={saladItems}
                   />
                 );
               })()}

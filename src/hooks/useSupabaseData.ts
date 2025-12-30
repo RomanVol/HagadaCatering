@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Category, FoodItem, FoodItemAddOn, FoodItemPreparation, FoodItemVariation, LiterSize, MeasurementType } from "@/types";
+import { Category, FoodItem, FoodItemAddOn, FoodItemPreparation, FoodItemVariation, FoodItemCustomLiter, LiterSize, MeasurementType } from "@/types";
 
 interface UseSupabaseDataResult {
   categories: Category[];
@@ -91,7 +91,7 @@ export function useSupabaseData(): UseSupabaseDataResult {
             .select("*")
             .eq("is_active", true)
             .order("sort_order");
-          
+
           if (!variationsError && data) {
             variationsData = data;
           }
@@ -100,13 +100,30 @@ export function useSupabaseData(): UseSupabaseDataResult {
           console.log("Variations table not available yet");
         }
 
+        // Fetch custom liter sizes for food items (e.g., 1L for טחינה)
+        let customLitersData: FoodItemCustomLiter[] = [];
+        try {
+          const { data, error: customLitersError } = await supabase
+            .from("food_item_custom_liters")
+            .select("*")
+            .eq("is_active", true)
+            .order("sort_order");
+
+          if (!customLitersError && data) {
+            customLitersData = data;
+          }
+        } catch {
+          // Table might not exist yet, ignore
+          console.log("Custom liters table not available yet");
+        }
+
         setCategories(categoriesData || []);
 
         // Find salads category to set proper default measurement_type
         const saladsCategory = (categoriesData || []).find((c) => c.name_en === "salads");
         const sidesCategory = (categoriesData || []).find((c) => c.name_en === "sides");
 
-        // Add measurement_type fallback and attach add-ons, preparations, and variations
+        // Add measurement_type fallback and attach add-ons, preparations, variations, and custom liters
         const itemsWithExtras = (foodItemsData || []).map((item) => {
           const itemAddOns = addOnsData.filter(
             (addon) => addon.parent_food_item_id === item.id
@@ -116,6 +133,9 @@ export function useSupabaseData(): UseSupabaseDataResult {
           );
           const itemVariations = variationsData.filter(
             (variation) => variation.parent_food_item_id === item.id
+          );
+          const itemCustomLiters = customLitersData.filter(
+            (liter) => liter.food_item_id === item.id
           );
 
           // Determine measurement_type: use DB value first, then fallback based on category
@@ -141,6 +161,7 @@ export function useSupabaseData(): UseSupabaseDataResult {
             add_ons: itemAddOns.length > 0 ? itemAddOns : undefined,
             preparations: itemPreparations.length > 0 ? itemPreparations : undefined,
             variations: itemVariations.length > 0 ? itemVariations : undefined,
+            custom_liters: itemCustomLiters.length > 0 ? itemCustomLiters : undefined,
           };
         });
         setFoodItems(itemsWithExtras);

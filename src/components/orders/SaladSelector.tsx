@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { FoodItem, FoodItemAddOn, LiterSize, MeasurementType } from "@/types";
+import { FoodItem, FoodItemAddOn, FoodItemCustomLiter, LiterSize, MeasurementType } from "@/types";
 import { Check, Plus } from "lucide-react";
 
 interface LiterQuantity {
@@ -71,13 +71,28 @@ export function SaladCard({
   // Build summary text based on measurement type
   const selectionSummary = React.useMemo(() => {
     if (measurementType === "liters") {
-      return literQuantities
-        .filter((lq) => lq.quantity > 0)
-        .map((lq) => {
+      const parts: string[] = [];
+
+      // Global liter sizes
+      literQuantities
+        .filter((lq) => lq.quantity > 0 && !lq.liter_size_id.startsWith("custom_"))
+        .forEach((lq) => {
           const size = literSizes.find((ls) => ls.id === lq.liter_size_id);
-          return `${size?.label}×${lq.quantity}`;
-        })
-        .join(" | ");
+          if (size) parts.push(`${size.label}×${lq.quantity}`);
+        });
+
+      // Custom liter sizes
+      if (item.custom_liters) {
+        literQuantities
+          .filter((lq) => lq.quantity > 0 && lq.liter_size_id.startsWith("custom_"))
+          .forEach((lq) => {
+            const customId = lq.liter_size_id.replace("custom_", "");
+            const customLiter = item.custom_liters?.find((cl) => cl.id === customId);
+            if (customLiter) parts.push(`${customLiter.label}×${lq.quantity}`);
+          });
+      }
+
+      return parts.join(" | ");
     } else if (measurementType === "size" && sizeQuantity) {
       const parts: string[] = [];
       if (sizeQuantity.big > 0) parts.push(`${sizeQuantity.big}ג׳`);
@@ -185,6 +200,14 @@ interface SaladLiterPopupProps {
   onNoteChange?: (note: string) => void;
   onCancel?: () => void; // Cancel/unselect the salad
   onClose: () => void;
+  // For linked add-ons: merge quantities into linked salad item
+  onMergeAddOnToLinkedItem?: (
+    linkedFoodItemId: string,
+    addOnQuantities: { quantity?: number; liters?: { liter_size_id: string; quantity: number }[] },
+    sourceSaladName: string
+  ) => void;
+  // All salad items for looking up linked item's custom_liters
+  allSaladItems?: FoodItem[];
 }
 
 export function SaladLiterPopup({
@@ -204,6 +227,8 @@ export function SaladLiterPopup({
   onNoteChange,
   onCancel,
   onClose,
+  onMergeAddOnToLinkedItem,
+  allSaladItems,
 }: SaladLiterPopupProps) {
   const getQuantityForLiter = (literId: string): number => {
     const found = literQuantities.find((lq) => lq.liter_size_id === literId);
@@ -236,13 +261,28 @@ export function SaladLiterPopup({
   // Build summary
   const selectionSummary = React.useMemo(() => {
     if (measurementType === "liters") {
-      return literQuantities
-        .filter((lq) => lq.quantity > 0)
-        .map((lq) => {
+      const parts: string[] = [];
+
+      // Global liter sizes
+      literQuantities
+        .filter((lq) => lq.quantity > 0 && !lq.liter_size_id.startsWith("custom_"))
+        .forEach((lq) => {
           const size = literSizes.find((ls) => ls.id === lq.liter_size_id);
-          return `${size?.label} × ${lq.quantity}`;
-        })
-        .join(", ");
+          if (size) parts.push(`${size.label} × ${lq.quantity}`);
+        });
+
+      // Custom liter sizes
+      if (item.custom_liters) {
+        literQuantities
+          .filter((lq) => lq.quantity > 0 && lq.liter_size_id.startsWith("custom_"))
+          .forEach((lq) => {
+            const customId = lq.liter_size_id.replace("custom_", "");
+            const customLiter = item.custom_liters?.find((cl) => cl.id === customId);
+            if (customLiter) parts.push(`${customLiter.label} × ${lq.quantity}`);
+          });
+      }
+
+      return parts.join(", ");
     } else if (measurementType === "size" && sizeQuantity) {
       const parts: string[] = [];
       if (sizeQuantity.big > 0) parts.push(`גדול (ג׳) × ${sizeQuantity.big}`);
@@ -257,7 +297,7 @@ export function SaladLiterPopup({
   // Build add-ons summary
   const addOnsSummary = React.useMemo(() => {
     if (!item.add_ons || !addOns) return "";
-    
+
     const summaries: string[] = [];
     item.add_ons.forEach((addon) => {
       const addonState = addOns.find((ao) => ao.addon_id === addon.id);
@@ -266,24 +306,66 @@ export function SaladLiterPopup({
         if (addonState.quantity > 0) {
           summaries.push(`${addon.name}: ×${addonState.quantity}`);
         } else {
+          // Find linked item for custom liter lookup
+          const linkedItem = addon.linked_food_item_id && allSaladItems
+            ? allSaladItems.find(s => s.id === addon.linked_food_item_id)
+            : null;
+
           // Check for liters
           const litersSummary = addonState.liters
             .filter((l) => l.quantity > 0)
             .map((l) => {
+              // Check if it's a custom liter
+              if (l.liter_size_id.startsWith("custom_")) {
+                const customId = l.liter_size_id.replace("custom_", "");
+                const customLiter = linkedItem?.custom_liters?.find(cl => cl.id === customId);
+                return customLiter ? `${customLiter.label}×${l.quantity}` : `×${l.quantity}`;
+              }
+              // Global liter size
               const size = literSizes.find((ls) => ls.id === l.liter_size_id);
               return `${size?.label}×${l.quantity}`;
             })
             .join(", ");
-          
+
           if (litersSummary) {
             summaries.push(`${addon.name}: ${litersSummary}`);
           }
         }
       }
     });
-    
+
     return summaries.join(" | ");
-  }, [item.add_ons, addOns, literSizes]);
+  }, [item.add_ons, addOns, literSizes, allSaladItems]);
+
+  // Handle confirm: process linked add-ons before closing
+  const handleConfirm = () => {
+    // Check for add-ons with linked_food_item_id
+    if (item.add_ons && addOns && onMergeAddOnToLinkedItem) {
+      item.add_ons.forEach((addon) => {
+        if (addon.linked_food_item_id) {
+          const addonState = addOns.find((ao) => ao.addon_id === addon.id);
+          if (addonState) {
+            // Check if addon has any quantities
+            const hasQuantity = addonState.quantity > 0;
+            const hasLiters = addonState.liters.some(l => l.quantity > 0);
+
+            if (hasQuantity || hasLiters) {
+              // Merge into linked salad item
+              onMergeAddOnToLinkedItem(
+                addon.linked_food_item_id,
+                {
+                  quantity: hasQuantity ? addonState.quantity : undefined,
+                  liters: hasLiters ? addonState.liters.filter(l => l.quantity > 0) : undefined,
+                },
+                item.name
+              );
+            }
+          }
+        }
+      });
+    }
+    onClose();
+  };
 
   return (
     <>
@@ -310,21 +392,51 @@ export function SaladLiterPopup({
           
           {/* Liter options */}
           {measurementType === "liters" && (
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              {literSizes.map((literSize) => {
-                const qty = getQuantityForLiter(literSize.id);
-                const isActive = qty > 0;
+            <div className="space-y-4 mb-4">
+              {/* Global liter sizes */}
+              <div className="grid grid-cols-2 gap-4">
+                {literSizes.map((literSize) => {
+                  const qty = getQuantityForLiter(literSize.id);
+                  const isActive = qty > 0;
 
-                return (
-                  <LiterSelector
-                    key={literSize.id}
-                    literSize={literSize}
-                    quantity={qty}
-                    isActive={isActive}
-                    onChange={(newQty) => onLiterChange(literSize.id, newQty)}
-                  />
-                );
-              })}
+                  return (
+                    <LiterSelector
+                      key={literSize.id}
+                      literSize={literSize}
+                      quantity={qty}
+                      isActive={isActive}
+                      onChange={(newQty) => onLiterChange(literSize.id, newQty)}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Custom liter sizes for this item */}
+              {item.custom_liters && item.custom_liters.filter(cl => cl.is_active).length > 0 && (
+                <div className="pt-3 border-t border-cyan-200">
+                  <h4 className="text-sm font-bold text-cyan-700 mb-2">גדלים מותאמים</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    {item.custom_liters
+                      .filter(cl => cl.is_active)
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((customLiter) => {
+                        const customId = `custom_${customLiter.id}`;
+                        const qty = getQuantityForLiter(customId);
+                        const isActive = qty > 0;
+
+                        return (
+                          <CustomLiterSelector
+                            key={customLiter.id}
+                            customLiter={customLiter}
+                            quantity={qty}
+                            isActive={isActive}
+                            onChange={(newQty) => onLiterChange(customId, newQty)}
+                          />
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -458,12 +570,19 @@ export function SaladLiterPopup({
                 
                 // Use liters for other measurement types
                 if (onAddOnLiterChange) {
+                  // Find linked item's custom liters if addon has linked_food_item_id
+                  const linkedItem = addon.linked_food_item_id && allSaladItems
+                    ? allSaladItems.find(s => s.id === addon.linked_food_item_id)
+                    : null;
+                  const linkedCustomLiters = linkedItem?.custom_liters?.filter(cl => cl.is_active) || [];
+
                   return (
                     <div key={addon.id} className="mb-4">
                       <h5 className="text-sm font-semibold text-gray-800 mb-2 pr-2 border-r-2 border-purple-400">
                         {addon.name}
                       </h5>
                       <div className="grid grid-cols-4 gap-2">
+                        {/* Global liter sizes */}
                         {literSizes.map((literSize) => {
                           const qty = getAddOnQuantity(addon.id, literSize.id);
                           const isActive = qty > 0;
@@ -475,6 +594,23 @@ export function SaladLiterPopup({
                               quantity={qty}
                               isActive={isActive}
                               onChange={(newQty) => onAddOnLiterChange(addon.id, literSize.id, newQty)}
+                            />
+                          );
+                        })}
+
+                        {/* Custom liter sizes from linked item */}
+                        {linkedCustomLiters.map((customLiter) => {
+                          const customId = `custom_${customLiter.id}`;
+                          const qty = getAddOnQuantity(addon.id, customId);
+                          const isActive = qty > 0;
+
+                          return (
+                            <AddOnLiterSelector
+                              key={`${addon.id}-${customId}`}
+                              label={customLiter.label}
+                              quantity={qty}
+                              isActive={isActive}
+                              onChange={(newQty) => onAddOnLiterChange(addon.id, customId, newQty)}
                             />
                           );
                         })}
@@ -539,7 +675,7 @@ export function SaladLiterPopup({
             {/* Confirm button */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleConfirm}
               className="flex-1 h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
             >
               אישור
@@ -626,6 +762,91 @@ function LiterSelector({ literSize, quantity, isActive, onChange }: LiterSelecto
             isActive 
               ? "bg-white/20 text-white border-white/40 hover:bg-white/30" 
               : "bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200"
+          )}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Custom liter selector (for item-specific liter sizes)
+interface CustomLiterSelectorProps {
+  customLiter: FoodItemCustomLiter;
+  quantity: number;
+  isActive: boolean;
+  onChange: (quantity: number) => void;
+}
+
+function CustomLiterSelector({ customLiter, quantity, isActive, onChange }: CustomLiterSelectorProps) {
+  const increment = () => onChange(quantity + 1);
+  const decrement = () => {
+    if (quantity > 0) onChange(quantity - 1);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "") {
+      onChange(0);
+    } else {
+      const num = parseInt(value, 10);
+      if (!isNaN(num) && num >= 0) {
+        onChange(num);
+      }
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center rounded-xl border-2 px-3 py-2 transition-all",
+        isActive
+          ? "border-cyan-500 bg-cyan-500"
+          : "border-cyan-300 bg-cyan-50"
+      )}
+    >
+      <span className={cn(
+        "text-sm font-bold mb-1",
+        isActive ? "text-white" : "text-cyan-700"
+      )}>
+        {customLiter.label}
+      </span>
+
+      <div className="flex items-center justify-center gap-1">
+        <button
+          type="button"
+          onClick={decrement}
+          className={cn(
+            "w-6 h-6 flex items-center justify-center rounded text-sm font-bold transition-colors border",
+            isActive
+              ? "bg-white/20 text-white border-white/40 hover:bg-white/30"
+              : "bg-cyan-100 text-cyan-600 border-cyan-300 hover:bg-cyan-200"
+          )}
+        >
+          −
+        </button>
+        <input
+          type="number"
+          min="0"
+          value={quantity}
+          onChange={handleInputChange}
+          className={cn(
+            "w-8 h-6 text-center text-sm font-bold rounded focus:outline-none focus:ring-2",
+            isActive
+              ? "bg-white/20 text-white border-2 border-white/40 focus:ring-white/50"
+              : "bg-white text-cyan-700 border-2 border-cyan-300 focus:ring-cyan-300",
+            "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          )}
+        />
+        <button
+          type="button"
+          onClick={increment}
+          className={cn(
+            "w-6 h-6 flex items-center justify-center rounded text-sm font-bold transition-colors border",
+            isActive
+              ? "bg-white/20 text-white border-white/40 hover:bg-white/30"
+              : "bg-cyan-100 text-cyan-600 border-cyan-300 hover:bg-cyan-200"
           )}
         >
           +

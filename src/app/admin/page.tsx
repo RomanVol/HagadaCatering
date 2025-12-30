@@ -15,9 +15,10 @@ import {
   Check,
   ChefHat,
   PackagePlus,
+  Droplet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Category, FoodItem, FoodItemPreparation, FoodItemAddOn, MeasurementType } from "@/types";
+import { Category, FoodItem, FoodItemPreparation, FoodItemAddOn, FoodItemCustomLiter, MeasurementType } from "@/types";
 import {
   getCategories,
   getFoodItems,
@@ -34,6 +35,10 @@ import {
   createAddOn,
   updateAddOn,
   deleteAddOn,
+  getCustomLiters,
+  createCustomLiter,
+  updateCustomLiter,
+  deleteCustomLiter,
 } from "@/lib/services/admin-service";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
@@ -75,6 +80,13 @@ const LABELS = {
   addOnName: "שם התוספת",
   manageAddOns: "ניהול תוספות",
   addOnMeasurementType: "סוג מדידה לתוספת",
+  // Custom liters (גדלי ליטר מותאמים)
+  customLiters: "גדלי ליטר מותאמים",
+  addCustomLiter: "הוסף גודל",
+  noCustomLiters: "אין גדלים מותאמים",
+  customLiterSize: "גודל (ליטר)",
+  customLiterLabel: "תווית",
+  manageCustomLiters: "ניהול גדלי ליטר",
 };
 
 // Measurement type options
@@ -127,9 +139,21 @@ export default function AdminPage() {
   const [isLoadingAddOns, setIsLoadingAddOns] = React.useState(false);
   const [newAddOnName, setNewAddOnName] = React.useState("");
   const [newAddOnMeasurementType, setNewAddOnMeasurementType] = React.useState<MeasurementType>("liters");
+  const [newAddOnLinkedFoodItemId, setNewAddOnLinkedFoodItemId] = React.useState<string | null>(null);
   const [editingAddOnId, setEditingAddOnId] = React.useState<string | null>(null);
   const [editingAddOnName, setEditingAddOnName] = React.useState("");
   const [editingAddOnMeasurementType, setEditingAddOnMeasurementType] = React.useState<MeasurementType>("liters");
+  const [editingAddOnLinkedFoodItemId, setEditingAddOnLinkedFoodItemId] = React.useState<string | null>(null);
+
+  // Custom liters state (גדלי ליטר מותאמים)
+  const [customLitersModalItem, setCustomLitersModalItem] = React.useState<FoodItem | null>(null);
+  const [customLiters, setCustomLiters] = React.useState<FoodItemCustomLiter[]>([]);
+  const [isLoadingCustomLiters, setIsLoadingCustomLiters] = React.useState(false);
+  const [newCustomLiterSize, setNewCustomLiterSize] = React.useState("");
+  const [newCustomLiterLabel, setNewCustomLiterLabel] = React.useState("");
+  const [editingCustomLiterId, setEditingCustomLiterId] = React.useState<string | null>(null);
+  const [editingCustomLiterSize, setEditingCustomLiterSize] = React.useState("");
+  const [editingCustomLiterLabel, setEditingCustomLiterLabel] = React.useState("");
 
   const loadCategories = React.useCallback(async () => {
     setIsLoading(true);
@@ -392,9 +416,11 @@ export default function AdminPage() {
     setAddOns([]);
     setNewAddOnName("");
     setNewAddOnMeasurementType("liters");
+    setNewAddOnLinkedFoodItemId(null);
     setEditingAddOnId(null);
     setEditingAddOnName("");
     setEditingAddOnMeasurementType("liters");
+    setEditingAddOnLinkedFoodItemId(null);
   };
 
   const handleAddAddOn = async () => {
@@ -405,12 +431,14 @@ export default function AdminPage() {
       parent_food_item_id: addOnsModalItem.id,
       name: newAddOnName.trim(),
       measurement_type: newAddOnMeasurementType,
+      linked_food_item_id: newAddOnLinkedFoodItemId,
     });
     setIsSaving(false);
 
     if (result.success) {
       setNewAddOnName("");
       setNewAddOnMeasurementType("liters");
+      setNewAddOnLinkedFoodItemId(null);
       setSuccessMessage(`התוספת "${newAddOnName}" נוספה בהצלחה`);
       const itemAddOns = await getAddOns(addOnsModalItem.id);
       setAddOns(itemAddOns);
@@ -427,6 +455,7 @@ export default function AdminPage() {
       id: addOnId,
       name: editingAddOnName.trim(),
       measurement_type: editingAddOnMeasurementType,
+      linked_food_item_id: editingAddOnLinkedFoodItemId,
     });
     setIsSaving(false);
 
@@ -434,6 +463,7 @@ export default function AdminPage() {
       setEditingAddOnId(null);
       setEditingAddOnName("");
       setEditingAddOnMeasurementType("liters");
+      setEditingAddOnLinkedFoodItemId(null);
       setSuccessMessage("התוספת עודכנה בהצלחה");
       if (addOnsModalItem) {
         const itemAddOns = await getAddOns(addOnsModalItem.id);
@@ -472,6 +502,100 @@ export default function AdminPage() {
     }
   };
 
+  // Custom liters handlers (גדלי ליטר מותאמים)
+  const openCustomLitersModal = async (item: FoodItem) => {
+    setCustomLitersModalItem(item);
+    setIsLoadingCustomLiters(true);
+    const itemCustomLiters = await getCustomLiters(item.id);
+    setCustomLiters(itemCustomLiters);
+    setIsLoadingCustomLiters(false);
+  };
+
+  const closeCustomLitersModal = () => {
+    setCustomLitersModalItem(null);
+    setCustomLiters([]);
+    setNewCustomLiterSize("");
+    setNewCustomLiterLabel("");
+    setEditingCustomLiterId(null);
+    setEditingCustomLiterSize("");
+    setEditingCustomLiterLabel("");
+  };
+
+  const handleAddCustomLiter = async () => {
+    if (!newCustomLiterSize.trim() || !newCustomLiterLabel.trim() || !customLitersModalItem) return;
+
+    const size = parseFloat(newCustomLiterSize);
+    if (isNaN(size) || size <= 0) {
+      setError("גודל חייב להיות מספר חיובי");
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await createCustomLiter({
+      food_item_id: customLitersModalItem.id,
+      size: size,
+      label: newCustomLiterLabel.trim(),
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setNewCustomLiterSize("");
+      setNewCustomLiterLabel("");
+      setSuccessMessage(`גודל ${newCustomLiterLabel} נוסף בהצלחה`);
+      const itemCustomLiters = await getCustomLiters(customLitersModalItem.id);
+      setCustomLiters(itemCustomLiters);
+    } else {
+      setError(result.error || "שגיאה בהוספת הגודל");
+    }
+  };
+
+  const handleUpdateCustomLiter = async (literId: string) => {
+    if (!editingCustomLiterSize.trim() || !editingCustomLiterLabel.trim()) return;
+
+    const size = parseFloat(editingCustomLiterSize);
+    if (isNaN(size) || size <= 0) {
+      setError("גודל חייב להיות מספר חיובי");
+      return;
+    }
+
+    setIsSaving(true);
+    const result = await updateCustomLiter({
+      id: literId,
+      size: size,
+      label: editingCustomLiterLabel.trim(),
+    });
+    setIsSaving(false);
+
+    if (result.success) {
+      setEditingCustomLiterId(null);
+      setEditingCustomLiterSize("");
+      setEditingCustomLiterLabel("");
+      setSuccessMessage("הגודל עודכן בהצלחה");
+      if (customLitersModalItem) {
+        const itemCustomLiters = await getCustomLiters(customLitersModalItem.id);
+        setCustomLiters(itemCustomLiters);
+      }
+    } else {
+      setError(result.error || "שגיאה בעדכון הגודל");
+    }
+  };
+
+  const handleDeleteCustomLiter = async (liter: FoodItemCustomLiter) => {
+    if (!confirm(`האם למחוק את "${liter.label}"?`)) return;
+
+    const result = await deleteCustomLiter(liter.id);
+
+    if (result.success) {
+      setSuccessMessage(`הגודל "${liter.label}" נמחק`);
+      if (customLitersModalItem) {
+        const itemCustomLiters = await getCustomLiters(customLitersModalItem.id);
+        setCustomLiters(itemCustomLiters);
+      }
+    } else {
+      setError(result.error || "שגיאה במחיקת הגודל");
+    }
+  };
+
   // Filter items based on showInactive
   const filteredItems = React.useMemo(() => {
     if (showInactive) {
@@ -503,6 +627,13 @@ export default function AdminPage() {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
     return selectedCategory?.name_en === "bakery";
   }, [categories, selectedCategoryId]);
+
+  // Get salad items for linked food item dropdown in add-ons
+  const saladItems = React.useMemo(() => {
+    const saladsCategory = categories.find((c) => c.name_en === "salads");
+    if (!saladsCategory) return [];
+    return foodItems.filter((item) => item.category_id === saladsCategory.id && item.is_active);
+  }, [categories, foodItems]);
 
   // Get measurement type label
   const getMeasurementLabel = (type: MeasurementType) => {
@@ -819,6 +950,17 @@ export default function AdminPage() {
                           </button>
                         )}
 
+                        {/* Custom liters button - only for salad items with measurement_type='liters' */}
+                        {isSaladsCategory && item.is_active && item.measurement_type === "liters" && (
+                          <button
+                            onClick={() => openCustomLitersModal(item)}
+                            className="w-10 h-10 flex items-center justify-center rounded-lg bg-cyan-100 text-cyan-600 hover:bg-cyan-200 transition-colors"
+                            title={LABELS.manageCustomLiters}
+                          >
+                            <Droplet className="w-5 h-5" />
+                          </button>
+                        )}
+
                         {/* Preparations button - only for non-salad categories */}
                         {!isSaladsCategory && item.is_active && (
                           <button
@@ -1120,6 +1262,28 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* Linked Food Item Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    קישור לפריט סלט (אופציונלי)
+                  </label>
+                  <select
+                    value={newAddOnLinkedFoodItemId || ""}
+                    onChange={(e) => setNewAddOnLinkedFoodItemId(e.target.value || null)}
+                    className="w-full h-12 px-4 rounded-lg border border-gray-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 transition-all bg-white"
+                  >
+                    <option value="">ללא קישור</option>
+                    {saladItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    כאשר בוחרים תוספת מקושרת, הכמויות יתווספו לפריט הסלט המקושר
+                  </p>
+                </div>
+
                 <button
                   onClick={handleAddAddOn}
                   disabled={!newAddOnName.trim() || isSaving}
@@ -1207,6 +1371,18 @@ export default function AdminPage() {
                                   כמות רגילה
                                 </button>
                               </div>
+                              <select
+                                value={editingAddOnLinkedFoodItemId || ""}
+                                onChange={(e) => setEditingAddOnLinkedFoodItemId(e.target.value || null)}
+                                className="w-full h-7 px-2 text-xs rounded border border-gray-300 focus:border-orange-500 focus:ring-1 focus:ring-orange-200 bg-white"
+                              >
+                                <option value="">ללא קישור</option>
+                                {saladItems.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    🔗 {item.name}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           ) : (
                             <div>
@@ -1214,6 +1390,11 @@ export default function AdminPage() {
                               <span className="mr-2 text-xs text-orange-600 bg-orange-50 px-2 py-0.5 rounded">
                                 {getAddOnMeasurementLabel(addOn.measurement_type)}
                               </span>
+                              {addOn.linked_food_item_id && (
+                                <span className="mr-2 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
+                                  🔗 {saladItems.find(s => s.id === addOn.linked_food_item_id)?.name || "מקושר"}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1251,6 +1432,7 @@ export default function AdminPage() {
                                   setEditingAddOnId(addOn.id);
                                   setEditingAddOnName(addOn.name);
                                   setEditingAddOnMeasurementType(addOn.measurement_type);
+                                  setEditingAddOnLinkedFoodItemId(addOn.linked_food_item_id || null);
                                 }}
                                 className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                               >
@@ -1275,6 +1457,207 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={closeAddOnsModal}
+                className="w-full h-12 mt-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
+              >
+                {LABELS.cancel}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Custom Liters Modal (גדלי ליטר מותאמים) */}
+      {customLitersModalItem && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={closeCustomLitersModal}
+          />
+
+          {/* Modal */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl max-h-[80vh] overflow-hidden">
+            <div className="max-w-lg mx-auto p-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{LABELS.customLiters}</h3>
+                  <p className="text-sm text-gray-500">{customLitersModalItem.name}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCustomLitersModal}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Add New Custom Liter */}
+              <div className="space-y-3 mb-4 p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    value={newCustomLiterSize}
+                    onChange={(e) => setNewCustomLiterSize(e.target.value)}
+                    placeholder={LABELS.customLiterSize}
+                    className="w-24 h-12 px-4 rounded-lg border border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all text-center"
+                    dir="ltr"
+                  />
+                  <input
+                    type="text"
+                    value={newCustomLiterLabel}
+                    onChange={(e) => setNewCustomLiterLabel(e.target.value)}
+                    placeholder={LABELS.customLiterLabel}
+                    className="flex-1 h-12 px-4 rounded-lg border border-gray-300 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 transition-all"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newCustomLiterSize.trim() && newCustomLiterLabel.trim()) {
+                        handleAddCustomLiter();
+                      }
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={handleAddCustomLiter}
+                  disabled={!newCustomLiterSize.trim() || !newCustomLiterLabel.trim() || isSaving}
+                  className="w-full h-12 bg-cyan-500 text-white font-semibold rounded-lg hover:bg-cyan-600 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSaving ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Plus className="w-5 h-5" />
+                  )}
+                  <span>{LABELS.addCustomLiter}</span>
+                </button>
+              </div>
+
+              {/* Custom Liters List */}
+              <div className="max-h-[40vh] overflow-y-auto">
+                {isLoadingCustomLiters ? (
+                  <div className="py-8 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-cyan-500" />
+                  </div>
+                ) : customLiters.length === 0 ? (
+                  <div className="py-8 text-center text-gray-500">
+                    {LABELS.noCustomLiters}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {customLiters.map((liter, index) => (
+                      <div
+                        key={liter.id}
+                        className={cn(
+                          "p-3 rounded-lg border flex items-center gap-3",
+                          liter.is_active
+                            ? "bg-white border-gray-200"
+                            : "bg-gray-50 border-gray-100 opacity-60"
+                        )}
+                      >
+                        {/* Sort Number */}
+                        <span className="w-6 h-6 flex items-center justify-center bg-cyan-100 rounded-full text-xs font-medium text-cyan-600">
+                          {index + 1}
+                        </span>
+
+                        {/* Size and Label */}
+                        <div className="flex-1">
+                          {editingCustomLiterId === liter.id ? (
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.1"
+                                value={editingCustomLiterSize}
+                                onChange={(e) => setEditingCustomLiterSize(e.target.value)}
+                                className="w-20 h-8 px-2 rounded border border-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-200 text-center"
+                                dir="ltr"
+                              />
+                              <input
+                                type="text"
+                                value={editingCustomLiterLabel}
+                                onChange={(e) => setEditingCustomLiterLabel(e.target.value)}
+                                className="flex-1 h-8 px-2 rounded border border-gray-300 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-200"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" && editingCustomLiterSize.trim() && editingCustomLiterLabel.trim()) {
+                                    handleUpdateCustomLiter(liter.id);
+                                  } else if (e.key === "Escape") {
+                                    setEditingCustomLiterId(null);
+                                    setEditingCustomLiterSize("");
+                                    setEditingCustomLiterLabel("");
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-gray-900">{liter.label}</span>
+                              <span className="text-xs text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded">
+                                {liter.size}L
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1">
+                          {editingCustomLiterId === liter.id ? (
+                            <>
+                              <button
+                                onClick={() => handleUpdateCustomLiter(liter.id)}
+                                disabled={!editingCustomLiterSize.trim() || !editingCustomLiterLabel.trim() || isSaving}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors disabled:opacity-50"
+                              >
+                                {isSaving ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingCustomLiterId(null);
+                                  setEditingCustomLiterSize("");
+                                  setEditingCustomLiterLabel("");
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingCustomLiterId(liter.id);
+                                  setEditingCustomLiterSize(liter.size.toString());
+                                  setEditingCustomLiterLabel(liter.label);
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCustomLiter(liter)}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Close button */}
+              <button
+                type="button"
+                onClick={closeCustomLitersModal}
                 className="w-full h-12 mt-4 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-all"
               >
                 {LABELS.cancel}

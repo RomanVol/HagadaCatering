@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Category, FoodItem, LiterSize, FoodItemVariation } from "@/types";
-import { GripVertical, X, Printer, ArrowRight, RotateCcw } from "lucide-react";
+import { GripVertical, X, Printer, ArrowRight, RotateCcw, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Order item with all details for printing
@@ -161,6 +161,22 @@ export function PrintOrderPage({
     dragOverIndex: null,
     dragOverSection: null,
   });
+
+  // State for item highlight colors
+  const [itemColors, setItemColors] = React.useState<Record<string, string>>({});
+
+  // Cycle through highlight colors: none -> yellow -> red -> green -> blue -> none
+  const cycleItemColor = (itemId: string) => {
+    const colors = ['none', 'yellow', 'red', 'green', 'blue'];
+    const currentColor = itemColors[itemId] || 'none';
+    const currentIndex = colors.indexOf(currentColor);
+    const nextColor = colors[(currentIndex + 1) % colors.length];
+
+    setItemColors(prev => ({
+      ...prev,
+      [itemId]: nextColor
+    }));
+  };
 
   // Handle hiding an item (keeps placeholder)
   const handleHideItem = (sectionId: string, itemId: string) => {
@@ -405,7 +421,7 @@ export function PrintOrderPage({
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 print:min-h-0 print:bg-white">
       {/* Toolbar - hidden when printing */}
       <div className="print:hidden sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -433,9 +449,10 @@ export function PrintOrderPage({
       </div>
 
       {/* Print Preview - A4 size */}
-      <div className="max-w-4xl mx-auto p-4 print:p-0 print:max-w-none">
+      <div className="max-w-4xl mx-auto p-4 print:p-0 print:max-w-none print:m-0">
         <div
-          className="bg-white shadow-lg print:shadow-none mx-auto relative"
+          id="print-page"
+          className="bg-white shadow-lg print:shadow-none mx-auto relative print:m-0 print-page-container"
           style={{
             width: "210mm",
             minHeight: "297mm",
@@ -451,7 +468,7 @@ export function PrintOrderPage({
               </div>
               <div className="text-center">
                 <p className="text-sm text-gray-600">
-                  {orderDate} {orderTime && `| ${orderTime}`}
+                  {orderDate}
                 </p>
               </div>
               <div className="text-left text-sm">
@@ -465,13 +482,25 @@ export function PrintOrderPage({
                 <span className="font-bold text-lg">{orderNumber}</span>
               </div>
               <div className="text-left flex-1">
-                <span className="text-sm">{customerPhone}{customerPhone2 && ` | ${customerPhone2}`}</span>
+                <span className="text-sm">{customerPhone}</span>
+                {customerPhone2 && <span className="text-sm mr-4">&nbsp;&nbsp;&nbsp;{customerPhone2}</span>}
               </div>
             </div>
+            {/* Third row: Times */}
+            {(kitchenTime || customerTime) && (
+              <div className="flex justify-start items-center text-sm mt-1 pt-1 border-t border-gray-200 gap-6">
+                {kitchenTime && (
+                  <span><span className="text-gray-600">זמן למטבח:</span> <span className="font-bold">{kitchenTime}</span></span>
+                )}
+                {customerTime && (
+                  <span><span className="text-gray-600">זמן ללקוח:</span> <span className="font-bold">{customerTime}</span></span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Main Content - 3 columns layout: Salads (wide) | Middle+Extras | Sides+Mains */}
-          <div className="grid grid-cols-3 gap-2 text-lg" style={{ direction: "rtl", height: "calc(297mm - 20mm - 60px)" }}>
+          <div className="grid grid-cols-3 gap-2 text-lg print-content-grid" style={{ direction: "rtl" }}>
             {/* Column 1: Salads - wider column */}
             <div className="border-l border-gray-300 pl-2">
               <h2 className="font-bold text-center mb-1 bg-gray-100 py-0.5 text-xl">
@@ -499,8 +528,10 @@ export function PrintOrderPage({
                     sectionId="salads"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "salads" && dragState.dragOverIndex === index}
+                    highlightColor={itemColors[item.id]}
                     onHide={() => handleHideItem("salads", item.id)}
                     onRestore={() => handleRestoreItem("salads", item.id)}
+                    onColorCycle={() => cycleItemColor(item.id)}
                     onDragStart={() => handleDragStart(item, "salads")}
                     onDragOver={(e) => handleDragOver(e, index, "salads")}
                     onDragEnd={handleDragEnd}
@@ -525,13 +556,15 @@ export function PrintOrderPage({
                       sectionId="middle_courses"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "middle_courses" && dragState.dragOverIndex === index}
+                      highlightColor={itemColors[item.id]}
                       onHide={() => handleHideItem("middle_courses", item.id)}
                       onRestore={() => handleRestoreItem("middle_courses", item.id)}
+                      onColorCycle={() => cycleItemColor(item.id)}
                       onDragStart={() => handleDragStart(item, "middle_courses")}
                       onDragOver={(e) => handleDragOver(e, index, "middle_courses")}
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
-                    formatAddOns={formatAddOns}
+                      formatAddOns={formatAddOns}
                     />
                   ))}
                 </div>
@@ -548,13 +581,15 @@ export function PrintOrderPage({
                       sectionId="extras"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "extras" && dragState.dragOverIndex === index}
+                      highlightColor={itemColors[item.id]}
                       onHide={() => handleHideItem("extras", item.id)}
                       onRestore={() => handleRestoreItem("extras", item.id)}
+                      onColorCycle={() => cycleItemColor(item.id)}
                       onDragStart={() => handleDragStart(item, "extras")}
                       onDragOver={(e) => handleDragOver(e, index, "extras")}
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
-                    formatAddOns={formatAddOns}
+                      formatAddOns={formatAddOns}
                     />
                   ))}
                 </div>
@@ -571,13 +606,15 @@ export function PrintOrderPage({
                       sectionId="bakery"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
+                      highlightColor={itemColors[item.id]}
                       onHide={() => handleHideItem("bakery", item.id)}
                       onRestore={() => handleRestoreItem("bakery", item.id)}
+                      onColorCycle={() => cycleItemColor(item.id)}
                       onDragStart={() => handleDragStart(item, "bakery")}
                       onDragOver={(e) => handleDragOver(e, index, "bakery")}
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
-                    formatAddOns={formatAddOns}
+                      formatAddOns={formatAddOns}
                     />
                   ))}
                 </div>
@@ -602,8 +639,10 @@ export function PrintOrderPage({
                     sectionId="sides"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "sides" && dragState.dragOverIndex === index}
+                    highlightColor={itemColors[item.id]}
                     onHide={() => handleHideItem("sides", item.id)}
                     onRestore={() => handleRestoreItem("sides", item.id)}
+                    onColorCycle={() => cycleItemColor(item.id)}
                     onDragStart={() => handleDragStart(item, "sides")}
                     onDragOver={(e) => handleDragOver(e, index, "sides")}
                     onDragEnd={handleDragEnd}
@@ -632,6 +671,8 @@ export function PrintOrderPage({
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
                     formatAddOns={formatAddOns}
+                    highlightColor={itemColors[item.id]}
+                    onColorCycle={() => cycleItemColor(item.id)}
                   />
                 ))}
               </div>
@@ -661,7 +702,7 @@ export function PrintOrderPage({
           </div>
 
           {/* Order Details - absolute bottom left corner */}
-          <div className="absolute bottom-[10mm] left-[10mm] text-sm space-y-1" style={{ direction: "rtl" }}>
+          <div className="absolute bottom-[10mm] left-[10mm] print:bottom-[5mm] print:left-[8mm] text-sm space-y-1 print:space-y-0.5" style={{ direction: "rtl" }}>
             <div className="flex items-center gap-2">
               <span className="font-bold">זמן ללקוח:</span>
               <span className="font-bold border-b border-gray-400 min-w-[60px]">
@@ -724,18 +765,63 @@ export function PrintOrderPage({
       <style jsx global>{`
         @media print {
           @page {
-            size: A4;
+            size: A4 portrait;
             margin: 0;
           }
-          
-          body {
+
+          * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
+          }
+
           .print\\:hidden {
             display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
           }
+
+          /* Reset min-height on all containers */
+          .min-h-screen, .min-h-full {
+            min-height: 0 !important;
+            height: auto !important;
+          }
+
+          /* Print page container - exact A4 with ID for high specificity */
+          #print-page {
+            width: 210mm !important;
+            height: 297mm !important;
+            min-height: 0 !important;
+            max-height: 297mm !important;
+            padding: 8mm !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+            box-sizing: border-box !important;
+            position: relative !important;
+          }
+
+          /* Content grid sizing for print */
+          .print-content-grid {
+            height: calc(297mm - 16mm - 40px - 90px) !important;
+            overflow: hidden !important;
+          }
+        }
+
+        /* Screen preview height */
+        .print-content-grid {
+          height: calc(297mm - 20mm - 60px);
         }
       `}</style>
     </div>
@@ -748,8 +834,10 @@ interface PrintItemRowProps {
   sectionId: string;
   isDragging: boolean;
   isDragOver: boolean;
+  highlightColor?: string;
   onHide: () => void;
   onRestore: () => void;
+  onColorCycle: () => void;
   onDragStart: () => void;
   onDragOver: (e: React.DragEvent) => void;
   onDragEnd: () => void;
@@ -762,14 +850,24 @@ function PrintItemRow({
   sectionId,
   isDragging,
   isDragOver,
+  highlightColor,
   onHide,
   onRestore,
+  onColorCycle,
   onDragStart,
   onDragOver,
   onDragEnd,
   formatQuantity,
   formatAddOns,
 }: PrintItemRowProps) {
+  // Get background color class based on highlight
+  const bgColorClass = {
+    none: '',
+    yellow: 'bg-yellow-100 print:bg-yellow-100',
+    red: 'bg-red-100 print:bg-red-100',
+    green: 'bg-green-100 print:bg-green-100',
+    blue: 'bg-blue-100 print:bg-blue-100',
+  }[highlightColor || 'none'] || '';
   // Hidden placeholder (user manually hid this item)
   if (item.isPlaceholder && !item.isVisible) {
     return (
@@ -807,7 +905,8 @@ function PrintItemRow({
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       className={cn(
-        "text-lg group cursor-move",
+        "text-lg group cursor-move rounded-sm",
+        bgColorClass,
         isDragging && "opacity-50 bg-blue-100",
         isDragOver && "border-t-2 border-blue-500",
         !item.isVisible && "opacity-40"
@@ -822,7 +921,7 @@ function PrintItemRow({
           <div className="flex-1 min-w-0">
             {/* Item name - stays together, red for extra items */}
             <span className={cn(
-              "font-bold text-lg whitespace-nowrap",
+              "font-bold text-xl whitespace-nowrap",
               item.isExtraItem && "text-red-600"
             )}>
               {item.name}
@@ -836,6 +935,20 @@ function PrintItemRow({
               )}> {quantityStr}</span>
             )}
           </div>
+
+          {/* Color toggle button - hidden when printing */}
+          <button
+            onClick={onColorCycle}
+            className="opacity-0 group-hover:opacity-100 px-1 print:hidden flex-shrink-0"
+            title="שנה צבע סימון"
+          >
+            <Palette
+              className="h-5 w-5"
+              style={{
+                color: highlightColor && highlightColor !== 'none' ? highlightColor : '#9ca3af'
+              }}
+            />
+          </button>
 
           {/* Hide button - hidden when printing */}
           <button

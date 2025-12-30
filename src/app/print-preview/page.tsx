@@ -13,6 +13,7 @@ interface PrintSaladData {
   name: string;
   selected: boolean;
   measurement_type: string;
+  isBulkApplied?: boolean;
   liters: { liter_size_id: string; label: string; quantity: number }[];
   size_big: number;
   size_small: number;
@@ -37,6 +38,8 @@ interface PrintItemData {
   note?: string;
   portion_multiplier?: number;
   portion_unit?: string;
+  // Liters for extras with liter measurement
+  liters?: { liter_size_id: string; label: string; quantity: number }[];
   // Variations (e.g., rice types: לבן, ירוק, אשפלו, אדום, לבנוני)
   variations?: {
     variation_id: string;
@@ -155,8 +158,10 @@ export default function PrintPreviewPage() {
     );
   }
 
-  // Build liter signatures to identify common liter selections across salads
-  const saladSignatures = printData.salads.map((salad) => {
+  // Build liter signatures ONLY for bulk-applied salads (those that received quantities via handleBulkApply)
+  const saladSignatures = printData.salads
+    .filter((salad) => salad.isBulkApplied)
+    .map((salad) => {
     const liters = salad.liters
       .filter((l) => l.quantity > 0)
       .map((l) => ({ label: l.label, quantity: l.quantity }))
@@ -443,6 +448,12 @@ export default function PrintPreviewPage() {
         category_name: "אקסטרות",
         selected: item.selected,
         quantity: item.quantity || 0,
+        size_big: item.size_big,
+        size_small: item.size_small,
+        liters: item.liters?.filter(l => l.quantity > 0).map(l => ({
+          label: l.label || "",
+          quantity: l.quantity,
+        })),
         portion_multiplier: item.portion_multiplier,
         portion_unit: item.portion_unit,
         calculatedQuantity,

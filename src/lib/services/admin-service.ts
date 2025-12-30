@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { FoodItem, Category, MeasurementType, FoodItemPreparation, FoodItemAddOn } from "@/types";
+import { FoodItem, Category, MeasurementType, FoodItemPreparation, FoodItemAddOn, FoodItemCustomLiter } from "@/types";
 import { v4 as uuidv4 } from "uuid";
 
 export interface CreateFoodItemInput {
@@ -410,6 +410,7 @@ export interface CreateAddOnInput {
   parent_food_item_id: string;
   name: string;
   measurement_type: MeasurementType;
+  linked_food_item_id?: string | null;  // Link to existing food item for quantity merging
 }
 
 export interface UpdateAddOnInput {
@@ -418,6 +419,7 @@ export interface UpdateAddOnInput {
   measurement_type?: MeasurementType;
   is_active?: boolean;
   sort_order?: number;
+  linked_food_item_id?: string | null;  // Link to existing food item for quantity merging
 }
 
 /**
@@ -467,6 +469,7 @@ export async function createAddOn(
     measurement_type: input.measurement_type,
     is_active: true,
     sort_order: nextSortOrder,
+    linked_food_item_id: input.linked_food_item_id || null,
   };
 
   const { data, error } = await supabase
@@ -497,6 +500,7 @@ export async function updateAddOn(
   if (input.measurement_type !== undefined) updates.measurement_type = input.measurement_type;
   if (input.is_active !== undefined) updates.is_active = input.is_active;
   if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+  if (input.linked_food_item_id !== undefined) updates.linked_food_item_id = input.linked_food_item_id;
 
   const { error } = await supabase
     .from("food_item_add_ons")
@@ -548,6 +552,168 @@ export async function permanentlyDeleteAddOn(
 
   if (error) {
     console.error("Error permanently deleting add-on:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// ========== Custom Liter Size Management (גדלי ליטר מותאמים) ==========
+
+export interface CreateCustomLiterInput {
+  food_item_id: string;
+  size: number;
+  label: string;
+}
+
+export interface UpdateCustomLiterInput {
+  id: string;
+  size?: number;
+  label?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+/**
+ * Get custom liter sizes for a food item
+ */
+export async function getCustomLiters(foodItemId: string): Promise<FoodItemCustomLiter[]> {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("food_item_custom_liters")
+    .select("*")
+    .eq("food_item_id", foodItemId)
+    .order("sort_order");
+
+  if (error) {
+    console.error("Error fetching custom liters:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Create a new custom liter size
+ */
+export async function createCustomLiter(
+  input: CreateCustomLiterInput
+): Promise<{ success: boolean; customLiter?: FoodItemCustomLiter; error?: string }> {
+  const supabase = createClient();
+
+  // Check if a custom liter with the same size already exists for this food item
+  const { data: existing } = await supabase
+    .from("food_item_custom_liters")
+    .select("id")
+    .eq("food_item_id", input.food_item_id)
+    .eq("size", input.size)
+    .single();
+
+  if (existing) {
+    return { success: false, error: `גודל ${input.size}L כבר קיים לפריט זה` };
+  }
+
+  // Get the max sort_order for the food item
+  const { data: existingLiters } = await supabase
+    .from("food_item_custom_liters")
+    .select("sort_order")
+    .eq("food_item_id", input.food_item_id)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const nextSortOrder = existingLiters && existingLiters.length > 0
+    ? existingLiters[0].sort_order + 1
+    : 1;
+
+  const newCustomLiter = {
+    id: uuidv4(),
+    food_item_id: input.food_item_id,
+    size: input.size,
+    label: input.label,
+    is_active: true,
+    sort_order: nextSortOrder,
+  };
+
+  const { data, error } = await supabase
+    .from("food_item_custom_liters")
+    .insert(newCustomLiter)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating custom liter:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true, customLiter: data };
+}
+
+/**
+ * Update a custom liter size
+ */
+export async function updateCustomLiter(
+  input: UpdateCustomLiterInput
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const updates: Record<string, unknown> = {};
+
+  if (input.size !== undefined) updates.size = input.size;
+  if (input.label !== undefined) updates.label = input.label;
+  if (input.is_active !== undefined) updates.is_active = input.is_active;
+  if (input.sort_order !== undefined) updates.sort_order = input.sort_order;
+
+  const { error } = await supabase
+    .from("food_item_custom_liters")
+    .update(updates)
+    .eq("id", input.id);
+
+  if (error) {
+    console.error("Error updating custom liter:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Delete a custom liter size (soft delete)
+ */
+export async function deleteCustomLiter(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  // Soft delete - set is_active to false
+  const { error } = await supabase
+    .from("food_item_custom_liters")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error deleting custom liter:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Permanently delete a custom liter size
+ */
+export async function permanentlyDeleteCustomLiter(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("food_item_custom_liters")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error permanently deleting custom liter:", error);
     return { success: false, error: error.message };
   }
 
