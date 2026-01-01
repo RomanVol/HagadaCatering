@@ -68,6 +68,8 @@ interface ExtrasFormItem {
   preparation_id?: string;
   preparation_name?: string;
   note?: string;
+  // Optional price for extras
+  price?: number;
 }
 
 // Extra item entry - for items added as extras from mains/sides/middle_courses
@@ -287,10 +289,12 @@ export function OrderForm() {
     extra_items: [],
   });
 
-  // Total extra price calculation - must be after formState declaration
+  // Total extra price calculation - includes both extra_items and extras category items with prices
   const totalExtraPrice = React.useMemo(() => {
-    return formState.extra_items.reduce((sum, item) => sum + item.price, 0);
-  }, [formState.extra_items]);
+    const extraItemsTotal = formState.extra_items.reduce((sum, item) => sum + item.price, 0);
+    const extrasTotal = formState.extras.reduce((sum, item) => sum + (item.price || 0), 0);
+    return extraItemsTotal + extrasTotal;
+  }, [formState.extra_items, formState.extras]);
 
   // Helper to get extra quantity for a food item (for displaying on cards)
   const getExtraForItem = React.useCallback((foodItemId: string) => {
@@ -693,7 +697,8 @@ export function OrderForm() {
   };
 
   // Extra item handlers - for adding items as extras with custom prices
-  // New behavior: merge extras into existing items with combined quantities and notes
+  // Items are added ONLY to extra_items[], original category stays unchanged
+  // If item already exists in extra_items, merge quantities
   const handleAddAsExtra = (
     sourceCategory: 'mains' | 'sides' | 'middle_courses',
     foodItemId: string,
@@ -708,83 +713,52 @@ export function OrderForm() {
     preparation_name?: string,
     note?: string
   ) => {
-    // Build extra note string
-    let extraNoteText = "אקסטרה: ";
-    if (quantityData.quantity && quantityData.quantity > 0) {
-      extraNoteText += `×${quantityData.quantity}`;
-    } else if ((quantityData.size_big || 0) > 0 || (quantityData.size_small || 0) > 0) {
-      const parts = [];
-      if (quantityData.size_big) parts.push(`ג׳:${quantityData.size_big}`);
-      if (quantityData.size_small) parts.push(`ק׳:${quantityData.size_small}`);
-      extraNoteText += parts.join(" ");
-    } else if (quantityData.variations && quantityData.variations.length > 0) {
-      extraNoteText += quantityData.variations
-        .filter(v => v.size_big > 0 || v.size_small > 0)
-        .map(v => {
-          const parts = [];
-          if (v.size_big > 0) parts.push(`ג׳:${v.size_big}`);
-          if (v.size_small > 0) parts.push(`ק׳:${v.size_small}`);
-          return `${v.name} ${parts.join(" ")}`;
-        })
-        .join(" | ");
-    }
-    extraNoteText += ` ₪${price}`;
+    setFormState((prev) => {
+      // DO NOT modify original category - keep it unchanged
+      // Extra stores only the extra quantity
 
-    // Update the appropriate category's item - auto-select and combine quantities
-    if (sourceCategory === 'mains') {
-      setFormState(prev => ({
+      // Check if item already exists in extra_items
+      const existingIndex = prev.extra_items.findIndex(
+        e => e.source_food_item_id === foodItemId
+      );
+
+      if (existingIndex >= 0) {
+        // Merge into existing extra entry
+        const existing = prev.extra_items[existingIndex];
+        const updated = {
+          ...existing,
+          quantity: (existing.quantity || 0) + (quantityData.quantity || 0),
+          size_big: (existing.size_big || 0) + (quantityData.size_big || 0),
+          size_small: (existing.size_small || 0) + (quantityData.size_small || 0),
+          price: existing.price + price, // Sum prices
+        };
+        return {
+          ...prev,
+          extra_items: prev.extra_items.map((e, i) => i === existingIndex ? updated : e),
+        };
+      }
+
+      // Create new extra entry with only the extra quantity
+      return {
         ...prev,
-        mains: prev.mains.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return { ...item, selected: true, quantity: newQuantity, note: newNote };
-        }),
-      }));
-    } else if (sourceCategory === 'sides') {
-      setFormState(prev => ({
-        ...prev,
-        sides: prev.sides.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newSizeBig = (item.size_big || 0) + (quantityData.size_big || 0);
-          const newSizeSmall = (item.size_small || 0) + (quantityData.size_small || 0);
-          // Merge variations if applicable
-          let newVariations = item.variations || [];
-          if (quantityData.variations && quantityData.variations.length > 0) {
-            quantityData.variations.forEach(extraVar => {
-              const existingIdx = newVariations.findIndex(v => v.variation_id === extraVar.variation_id);
-              if (existingIdx >= 0) {
-                newVariations = newVariations.map((v, idx) =>
-                  idx === existingIdx
-                    ? { ...v, size_big: v.size_big + extraVar.size_big, size_small: v.size_small + extraVar.size_small }
-                    : v
-                );
-              } else {
-                newVariations = [...newVariations, extraVar];
-              }
-            });
-          }
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return {
-            ...item, selected: true, size_big: newSizeBig, size_small: newSizeSmall,
-            variations: newVariations.length > 0 ? newVariations : undefined, note: newNote
-          };
-        }),
-      }));
-    } else if (sourceCategory === 'middle_courses') {
-      setFormState(prev => ({
-        ...prev,
-        middle_courses: prev.middle_courses.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return { ...item, selected: true, quantity: newQuantity, note: newNote };
-        }),
-      }));
-    }
+        extra_items: [
+          ...prev.extra_items,
+          {
+            id: crypto.randomUUID(),
+            source_food_item_id: foodItemId,
+            source_category: sourceCategory,
+            name,
+            quantity: quantityData.quantity,
+            size_big: quantityData.size_big,
+            size_small: quantityData.size_small,
+            variations: quantityData.variations,
+            price,
+            note,
+            preparation_name,
+          },
+        ],
+      };
+    });
   };
 
   const handleRemoveExtraItem = (id: string) => {
@@ -867,6 +841,20 @@ export function OrderForm() {
       extras: prev.extras.map((item) =>
         item.food_item_id === foodItemId
           ? { ...item, quantity, selected: quantity > 0 }
+          : item
+      ),
+    }));
+  };
+
+  const handleExtrasPriceChange = (
+    foodItemId: string,
+    price: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, price }
           : item
       ),
     }));
@@ -1108,8 +1096,8 @@ export function OrderForm() {
         pricePerPortion: formState.price_per_portion || undefined,
         deliveryFee: formState.delivery_fee || undefined,
         totalPayment: formState.total_portions && formState.price_per_portion
-          ? (formState.total_portions * formState.price_per_portion) + (formState.delivery_fee || 0)
-          : undefined,
+          ? (formState.total_portions * formState.price_per_portion) + (formState.delivery_fee || 0) + totalExtraPrice
+          : (totalExtraPrice > 0 ? totalExtraPrice : undefined),
       },
       salads: formState.salads.map(s => {
           const foodItem = saladItems.find(f => f.id === s.food_item_id);
@@ -1235,6 +1223,7 @@ export function OrderForm() {
             size_small: e.size_small,
             preparation_name: e.preparation_name,
             note: e.note,
+            price: e.price,
             portion_multiplier: foodItem?.portion_multiplier,
             portion_unit: foodItem?.portion_unit,
           };
@@ -1253,6 +1242,7 @@ export function OrderForm() {
       // Extra items from mains/sides/middle_courses with custom prices
       extraItems: formState.extra_items.map(e => ({
         id: e.id,
+        source_food_item_id: e.source_food_item_id,
         name: e.name,
         source_category: e.source_category,
         quantity: e.quantity,
@@ -1835,7 +1825,7 @@ const dayName = getHebrewDay(formState.order_date);
                       <label className="text-sm font-medium text-gray-700">סה״כ לתשלום</label>
                       <div className="h-12 px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
                         <span className="text-lg font-bold text-green-600">
-                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee).toLocaleString()}
+                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee + totalExtraPrice).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -2366,14 +2356,16 @@ const dayName = getHebrewDay(formState.order_date);
                         >
                           <div className="flex-1">
                             <span className="font-bold text-red-700">{extraItem.name}</span>
-                            {qtyDisplay && (
-                              <span className="text-red-600 mr-2 text-sm">{qtyDisplay}</span>
-                            )}
                             {extraItem.preparation_name && (
                               <span className="text-gray-500 text-xs mr-1">({extraItem.preparation_name})</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
+                            {/* Quantity (visually on right in RTL) */}
+                            {qtyDisplay && (
+                              <span className="text-red-600 text-sm font-medium">{qtyDisplay}</span>
+                            )}
+                            {/* Price input (visually to left of quantity in RTL) */}
                             <input
                               type="number"
                               min="0"
@@ -2390,6 +2382,7 @@ const dayName = getHebrewDay(formState.order_date);
                               dir="ltr"
                             />
                             <span className="text-red-600 text-sm">₪</span>
+                            {/* Delete button (leftmost in RTL) */}
                             <button
                               type="button"
                               onClick={() => handleRemoveExtraItem(extraItem.id)}
@@ -2552,6 +2545,22 @@ const dayName = getHebrewDay(formState.order_date);
                                 </div>
                               </div>
 
+                              {/* Price field */}
+                              <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  💰 מחיר (₪)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={expandedState?.price || ""}
+                                  onChange={(e) => handleExtrasPriceChange(expandedExtraId!, parseFloat(e.target.value) || 0)}
+                                  placeholder="הזן מחיר..."
+                                  className="w-full h-12 px-3 py-2 text-lg border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  dir="ltr"
+                                />
+                              </div>
+
                               {/* Notes field */}
                               <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2565,7 +2574,7 @@ const dayName = getHebrewDay(formState.order_date);
                                   dir="rtl"
                                 />
                               </div>
-                              
+
                               {/* Done button */}
                               <button
                                 type="button"
@@ -2604,6 +2613,11 @@ const dayName = getHebrewDay(formState.order_date);
                           handleNoteChange("extras", expandedExtraId, note)
                         }
                         onClose={() => setExpandedExtraId(null)}
+                        price={expandedState?.price}
+                        onPriceChange={(newPrice) =>
+                          handleExtrasPriceChange(expandedExtraId, newPrice)
+                        }
+                        showPriceInput={true}
                       />
                     );
                   })()}

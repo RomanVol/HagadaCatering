@@ -62,6 +62,7 @@ interface ExtrasFormItem {
   preparation_id?: string;
   preparation_name?: string;
   note?: string;
+  price?: number;
 }
 
 interface SidesFormItem {
@@ -181,10 +182,12 @@ export default function EditOrderPage() {
     extra_items: [],
   });
 
-  // Total extra price calculation - must be after formState declaration
+  // Total extra price calculation - includes both extra_items and extras category items with prices
   const totalExtraPrice = React.useMemo(() => {
-    return formState.extra_items.reduce((sum, item) => sum + item.price, 0);
-  }, [formState.extra_items]);
+    const extraItemsTotal = formState.extra_items.reduce((sum, item) => sum + item.price, 0);
+    const extrasTotal = formState.extras.reduce((sum, item) => sum + (item.price || 0), 0);
+    return extraItemsTotal + extrasTotal;
+  }, [formState.extra_items, formState.extras]);
 
   // Helper to get extra quantity for a food item (for displaying on cards)
   const getExtraForItem = React.useCallback((foodItemId: string) => {
@@ -751,7 +754,8 @@ export default function EditOrderPage() {
   };
 
   // Extra item handlers - for adding items as extras with custom prices
-  // New behavior: merge extras into existing items with combined quantities and notes
+  // Items are added ONLY to extra_items[], original category stays unchanged
+  // If item already exists in extra_items, merge quantities
   const handleAddAsExtra = (
     sourceCategory: 'mains' | 'sides' | 'middle_courses',
     foodItemId: string,
@@ -766,83 +770,52 @@ export default function EditOrderPage() {
     preparation_name?: string,
     note?: string
   ) => {
-    // Build extra note string
-    let extraNoteText = "אקסטרה: ";
-    if (quantityData.quantity && quantityData.quantity > 0) {
-      extraNoteText += `×${quantityData.quantity}`;
-    } else if ((quantityData.size_big || 0) > 0 || (quantityData.size_small || 0) > 0) {
-      const parts = [];
-      if (quantityData.size_big) parts.push(`ג׳:${quantityData.size_big}`);
-      if (quantityData.size_small) parts.push(`ק׳:${quantityData.size_small}`);
-      extraNoteText += parts.join(" ");
-    } else if (quantityData.variations && quantityData.variations.length > 0) {
-      extraNoteText += quantityData.variations
-        .filter(v => v.size_big > 0 || v.size_small > 0)
-        .map(v => {
-          const parts = [];
-          if (v.size_big > 0) parts.push(`ג׳:${v.size_big}`);
-          if (v.size_small > 0) parts.push(`ק׳:${v.size_small}`);
-          return `${v.name} ${parts.join(" ")}`;
-        })
-        .join(" | ");
-    }
-    extraNoteText += ` ₪${price}`;
+    setFormState((prev) => {
+      // DO NOT modify original category - keep it unchanged
+      // Extra stores only the extra quantity
 
-    // Update the appropriate category's item - auto-select and combine quantities
-    if (sourceCategory === 'mains') {
-      setFormState(prev => ({
+      // Check if item already exists in extra_items
+      const existingIndex = prev.extra_items.findIndex(
+        e => e.source_food_item_id === foodItemId
+      );
+
+      if (existingIndex >= 0) {
+        // Merge into existing extra entry
+        const existing = prev.extra_items[existingIndex];
+        const updated = {
+          ...existing,
+          quantity: (existing.quantity || 0) + (quantityData.quantity || 0),
+          size_big: (existing.size_big || 0) + (quantityData.size_big || 0),
+          size_small: (existing.size_small || 0) + (quantityData.size_small || 0),
+          price: existing.price + price, // Sum prices
+        };
+        return {
+          ...prev,
+          extra_items: prev.extra_items.map((e, i) => i === existingIndex ? updated : e),
+        };
+      }
+
+      // Create new extra entry with only the extra quantity
+      return {
         ...prev,
-        mains: prev.mains.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return { ...item, selected: true, quantity: newQuantity, note: newNote };
-        }),
-      }));
-    } else if (sourceCategory === 'sides') {
-      setFormState(prev => ({
-        ...prev,
-        sides: prev.sides.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newSizeBig = (item.size_big || 0) + (quantityData.size_big || 0);
-          const newSizeSmall = (item.size_small || 0) + (quantityData.size_small || 0);
-          // Merge variations if applicable
-          let newVariations = item.variations || [];
-          if (quantityData.variations && quantityData.variations.length > 0) {
-            quantityData.variations.forEach(extraVar => {
-              const existingIdx = newVariations.findIndex(v => v.variation_id === extraVar.variation_id);
-              if (existingIdx >= 0) {
-                newVariations = newVariations.map((v, idx) =>
-                  idx === existingIdx
-                    ? { ...v, size_big: v.size_big + extraVar.size_big, size_small: v.size_small + extraVar.size_small }
-                    : v
-                );
-              } else {
-                newVariations = [...newVariations, extraVar];
-              }
-            });
-          }
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return {
-            ...item, selected: true, size_big: newSizeBig, size_small: newSizeSmall,
-            variations: newVariations.length > 0 ? newVariations : undefined, note: newNote
-          };
-        }),
-      }));
-    } else if (sourceCategory === 'middle_courses') {
-      setFormState(prev => ({
-        ...prev,
-        middle_courses: prev.middle_courses.map(item => {
-          if (item.food_item_id !== foodItemId) return item;
-          const newQuantity = (item.quantity || 0) + (quantityData.quantity || 0);
-          const currentNote = item.note || "";
-          const newNote = currentNote ? `${currentNote} | ${extraNoteText}` : extraNoteText;
-          return { ...item, selected: true, quantity: newQuantity, note: newNote };
-        }),
-      }));
-    }
+        extra_items: [
+          ...prev.extra_items,
+          {
+            id: crypto.randomUUID(),
+            source_food_item_id: foodItemId,
+            source_category: sourceCategory,
+            name,
+            quantity: quantityData.quantity,
+            size_big: quantityData.size_big,
+            size_small: quantityData.size_small,
+            variations: quantityData.variations,
+            price,
+            note,
+            preparation_name,
+          },
+        ],
+      };
+    });
   };
 
   const handleRemoveExtraItem = (id: string) => {
@@ -933,6 +906,15 @@ export default function EditOrderPage() {
       ...prev,
       extras: prev.extras.map((item) =>
         item.food_item_id === foodItemId ? { ...item, note } : item
+      ),
+    }));
+  };
+
+  const handleExtrasPriceChange = (foodItemId: string, price: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId ? { ...item, price } : item
       ),
     }));
   };
@@ -1305,7 +1287,7 @@ export default function EditOrderPage() {
                       <label className="text-sm font-medium text-gray-700">סה״כ לתשלום</label>
                       <div className="h-12 px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
                         <span className="text-lg font-bold text-green-600">
-                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee).toLocaleString()}
+                          ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee + totalExtraPrice).toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -1664,14 +1646,16 @@ export default function EditOrderPage() {
                         >
                           <div className="flex-1">
                             <span className="font-bold text-red-700">{extraItem.name}</span>
-                            {qtyDisplay && (
-                              <span className="text-red-600 mr-2 text-sm">{qtyDisplay}</span>
-                            )}
                             {extraItem.preparation_name && (
                               <span className="text-gray-500 text-xs mr-1">({extraItem.preparation_name})</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
+                            {/* Quantity (visually on right in RTL) */}
+                            {qtyDisplay && (
+                              <span className="text-red-600 text-sm font-medium">{qtyDisplay}</span>
+                            )}
+                            {/* Price input (visually to left of quantity in RTL) */}
                             <input
                               type="number"
                               min="0"
@@ -1688,6 +1672,7 @@ export default function EditOrderPage() {
                               dir="ltr"
                             />
                             <span className="text-red-600 text-sm">₪</span>
+                            {/* Delete button (leftmost in RTL) */}
                             <button
                               type="button"
                               onClick={() => handleRemoveExtraItem(extraItem.id)}
@@ -1832,6 +1817,22 @@ export default function EditOrderPage() {
                                 </div>
                               </div>
 
+                              {/* Price input for extras */}
+                              <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  💰 מחיר (₪)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={expandedState?.price || ""}
+                                  onChange={(e) => handleExtrasPriceChange(expandedExtraId, parseFloat(e.target.value) || 0)}
+                                  placeholder="הזן מחיר..."
+                                  className="w-full h-12 px-4 text-lg font-bold text-center border-2 border-green-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-green-50"
+                                  dir="ltr"
+                                />
+                              </div>
+
                               {/* Notes field */}
                               <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1845,7 +1846,7 @@ export default function EditOrderPage() {
                                   dir="rtl"
                                 />
                               </div>
-                              
+
                               {/* Done button */}
                               <button
                                 type="button"
@@ -1859,7 +1860,7 @@ export default function EditOrderPage() {
                         </>
                       );
                     }
-                    
+
                     return (
                       <FoodItemPopup
                         item={expandedItem}
@@ -1871,10 +1872,13 @@ export default function EditOrderPage() {
                         useSizeMode={useSizeMode}
                         selectedPreparationId={expandedState?.preparation_id}
                         note={expandedState?.note}
+                        price={expandedState?.price}
                         onQuantityChange={(qty) => handleExtrasQuantityChange(expandedExtraId, qty)}
                         onSizeChange={useSizeMode ? (size, qty) => handleExtrasSizeChange(expandedExtraId, size, qty) : undefined}
                         onPreparationChange={(prepId, prepName) => handlePreparationChange("extras", expandedExtraId, prepId, prepName)}
                         onNoteChange={(note) => handleExtrasNoteChange(expandedExtraId, note)}
+                        onPriceChange={(price) => handleExtrasPriceChange(expandedExtraId, price)}
+                        showPriceInput={true}
                         onClose={() => setExpandedExtraId(null)}
                       />
                     );

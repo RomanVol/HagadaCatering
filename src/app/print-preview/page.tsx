@@ -49,6 +49,8 @@ interface PrintItemData {
   }[];
   // For mains with special calculations (בשר מיוחד)
   calculatedQuantity?: string; // e.g., "6 קציצות (×3)", "500 גרם"
+  // Price for extras category items
+  price?: number;
 }
 
 // Extra items from mains/sides/middle_courses with custom prices
@@ -304,7 +306,12 @@ export default function PrintPreviewPage() {
     });
 
     // Add middle course items - all items with selected status
+    // If item has an extra entry, add extra quantity to the display
     printData.middleCourses.forEach((item) => {
+      // Find if this item has an extra entry
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const combinedQuantity = (item.quantity || 0) + (extraItem?.quantity || 0);
+
       items.push({
         id: item.food_item_id,
         food_item_id: item.food_item_id,
@@ -312,7 +319,7 @@ export default function PrintPreviewPage() {
         category_id: middleCategory?.id || "",
         category_name: "מנות ביניים",
         selected: item.selected,
-        quantity: item.quantity || 0,
+        quantity: combinedQuantity,
         preparation_name: item.preparation_name,
         note: item.note,
         sort_order: sortOrder++,
@@ -346,7 +353,38 @@ export default function PrintPreviewPage() {
     });
 
     // Add sides items - all items with selected status
+    // If item has an extra entry, add extra quantity to the display
     sortedSides.forEach((item) => {
+      // Find if this item has an extra entry
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const combinedSizeBig = (item.size_big || 0) + (extraItem?.size_big || 0);
+      const combinedSizeSmall = (item.size_small || 0) + (extraItem?.size_small || 0);
+
+      // For variations, also combine with extra variations if they exist
+      let combinedVariations = item.variations?.map(v => ({
+        name: v.name,
+        size_big: v.size_big,
+        size_small: v.size_small,
+      }));
+
+      // If extra item has variations, merge them
+      if (extraItem?.variations && extraItem.variations.length > 0) {
+        combinedVariations = combinedVariations || [];
+        extraItem.variations.forEach(extraVar => {
+          const existingVar = combinedVariations!.find(v => v.name === extraVar.name);
+          if (existingVar) {
+            existingVar.size_big += extraVar.size_big;
+            existingVar.size_small += extraVar.size_small;
+          } else {
+            combinedVariations!.push({
+              name: extraVar.name,
+              size_big: extraVar.size_big,
+              size_small: extraVar.size_small,
+            });
+          }
+        });
+      }
+
       items.push({
         id: item.food_item_id,
         food_item_id: item.food_item_id,
@@ -354,13 +392,10 @@ export default function PrintPreviewPage() {
         category_id: sidesCategory?.id || "",
         category_name: "תוספות",
         selected: item.selected,
-        size_big: item.size_big,
-        size_small: item.size_small,
-        variations: item.variations?.map(v => ({
-          name: v.name,
-          size_big: v.size_big,
-          size_small: v.size_small,
-        })),
+        size_big: combinedSizeBig,
+        size_small: combinedSizeSmall,
+        variations: combinedVariations,
+        preparation_name: item.preparation_name,
         note: item.note,
         sort_order: sortOrder++,
         isVisible: true,
@@ -408,9 +443,14 @@ export default function PrintPreviewPage() {
     });
 
     // Add mains items - all items with selected status, with calculated quantities
+    // If item has an extra entry, add extra quantity to the display
     sortedMains.forEach((item) => {
+      // Find if this item has an extra entry
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const combinedQuantity = (item.quantity || 0) + (extraItem?.quantity || 0);
+
       const calculatedQuantity = calculatePortionDisplay(
-        item.quantity || 0,
+        combinedQuantity,
         item.portion_multiplier,
         item.portion_unit
       );
@@ -422,10 +462,11 @@ export default function PrintPreviewPage() {
         category_id: mainsCategory?.id || "",
         category_name: "עיקריות",
         selected: item.selected,
-        quantity: item.quantity || 0,
+        quantity: combinedQuantity,
         portion_multiplier: item.portion_multiplier,
         portion_unit: item.portion_unit,
         calculatedQuantity,
+        preparation_name: item.preparation_name,
         note: item.note,
         sort_order: sortOrder++,
         isVisible: true,
@@ -457,7 +498,9 @@ export default function PrintPreviewPage() {
         portion_multiplier: item.portion_multiplier,
         portion_unit: item.portion_unit,
         calculatedQuantity,
+        preparation_name: item.preparation_name,
         note: item.note,
+        price: item.price,
         sort_order: sortOrder++,
         isVisible: true,
       });
@@ -502,6 +545,7 @@ export default function PrintPreviewPage() {
           category_name: "לחם, מאפים וקינוחים",
           selected: item.selected,
           quantity: item.quantity || 0,
+          preparation_name: item.preparation_name,
           note: item.note,
           sort_order: sortOrder++,
           isVisible: true,

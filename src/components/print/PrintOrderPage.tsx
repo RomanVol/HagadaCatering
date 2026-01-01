@@ -817,11 +817,32 @@ export function PrintOrderPage({
             height: calc(297mm - 16mm - 40px - 90px) !important;
             overflow: hidden !important;
           }
+
+          /* Ensure text wraps properly in columns - critical for print */
+          .print-content-grid > div {
+            overflow: hidden !important;
+            min-width: 0 !important;
+          }
+
+          /* Force text wrapping in print mode */
+          .print-content-grid span,
+          .print-content-grid div {
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+            word-break: break-word !important;
+            hyphens: auto !important;
+          }
         }
 
         /* Screen preview height */
         .print-content-grid {
           height: calc(297mm - 20mm - 60px);
+        }
+
+        /* Ensure proper text wrapping in columns */
+        .print-content-grid > div {
+          overflow: hidden;
+          min-width: 0;
         }
       `}</style>
     </div>
@@ -918,21 +939,34 @@ function PrintItemRow({
           {/* Drag handle - hidden when printing */}
           <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0 mt-0.5" />
 
-          <div className="flex-1 min-w-0">
-            {/* Item name - stays together, red for extra items */}
-            <span className={cn(
-              "font-bold text-xl whitespace-nowrap",
-              item.isExtraItem && "text-red-600"
-            )}>
-              {item.name}
-              {item.preparation_name && ` - ${item.preparation_name}`}
-            </span>
-            {/* Main Quantity - on same line as name */}
-            {quantityStr && (
+          <div className="flex-1 min-w-0 overflow-hidden">
+            {/* First line: Item name + quantity + price - wraps naturally */}
+            <div className="break-words" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
               <span className={cn(
-                "font-bold text-lg whitespace-nowrap mr-2",
-                item.isExtraItem ? "text-red-600" : "text-gray-700"
-              )}> {quantityStr}</span>
+                "font-bold text-xl",
+                item.isExtraItem && "text-red-600"
+              )}>
+                {item.name}
+              </span>
+              {/* Main Quantity - inline with name, wraps if needed */}
+              {quantityStr && (
+                <span className={cn(
+                  "font-bold text-lg mr-2 whitespace-nowrap",
+                  item.isExtraItem ? "text-red-600" : "text-gray-700"
+                )}> {quantityStr}</span>
+              )}
+              {/* Price display for extras items */}
+              {item.price && item.price > 0 && (
+                <span className="font-bold text-lg mr-2 text-red-600 whitespace-nowrap">
+                  (₪{item.price})
+                </span>
+              )}
+            </div>
+            {/* Second line: Preparation name (if exists) - wraps naturally */}
+            {item.preparation_name && (
+              <div className="text-lg font-bold text-gray-700 mr-6 break-words" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                {item.preparation_name}
+              </div>
             )}
           </div>
 
