@@ -650,25 +650,31 @@ export default function EditOrderPage() {
     // Find the linked food item to look up custom liter labels
     const linkedItem = saladItems.find(s => s.id === linkedFoodItemId);
 
-    // Build note string
-    let noteText = `תוספת מ-${sourceSaladName}: `;
-    if (addOnQuantities.liters && addOnQuantities.liters.length > 0) {
-      const literParts = addOnQuantities.liters
-        .filter(l => l.quantity > 0)
-        .map(l => {
-          // Check for custom liter IDs (format: custom_<uuid>)
-          if (l.liter_size_id.startsWith("custom_")) {
-            const customId = l.liter_size_id.replace("custom_", "");
-            const customLiter = linkedItem?.custom_liters?.find(cl => cl.id === customId);
-            return customLiter ? `${customLiter.label}×${l.quantity}` : `×${l.quantity}`;
-          }
-          // Global liter size
-          const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
-          return literSize ? `${literSize.label}×${l.quantity}` : `×${l.quantity}`;
-        });
-      noteText += literParts.join(" ");
-    } else if (addOnQuantities.quantity && addOnQuantities.quantity > 0) {
-      noteText += `×${addOnQuantities.quantity}`;
+    // Special case: Skip note for זעלוק + טחינה (treated as implicit)
+    const skipNote = sourceSaladName.includes("זעלוק") && linkedItem?.name.includes("טחינה");
+
+    // Build note string (only if not skipped)
+    let noteText = "";
+    if (!skipNote) {
+      noteText = `תוספת מ-${sourceSaladName}: `;
+      if (addOnQuantities.liters && addOnQuantities.liters.length > 0) {
+        const literParts = addOnQuantities.liters
+          .filter(l => l.quantity > 0)
+          .map(l => {
+            // Check for custom liter IDs (format: custom_<uuid>)
+            if (l.liter_size_id.startsWith("custom_")) {
+              const customId = l.liter_size_id.replace("custom_", "");
+              const customLiter = linkedItem?.custom_liters?.find(cl => cl.id === customId);
+              return customLiter ? `${customLiter.label}×${l.quantity}` : `×${l.quantity}`;
+            }
+            // Global liter size
+            const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
+            return literSize ? `${literSize.label}×${l.quantity}` : `×${l.quantity}`;
+          });
+        noteText += literParts.join(" ");
+      } else if (addOnQuantities.quantity && addOnQuantities.quantity > 0) {
+        noteText += `×${addOnQuantities.quantity}`;
+      }
     }
 
     // Update linked salad item - auto-select and merge quantities
@@ -692,9 +698,11 @@ export default function EditOrderPage() {
           });
         }
 
-        // Append note
-        const currentNote = salad.note || "";
-        const newNote = currentNote ? `${currentNote} | ${noteText}` : noteText;
+        // Append note (only if not skipped)
+        let newNote = salad.note || "";
+        if (!skipNote && noteText) {
+          newNote = newNote ? `${newNote} | ${noteText}` : noteText;
+        }
 
         return { ...salad, selected: true, liters: newLiters, note: newNote };
       }),

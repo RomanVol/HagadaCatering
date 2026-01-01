@@ -394,6 +394,11 @@ export function PrintOrderPage({
 
     const addOnStrings: string[] = [];
     item.addOns.forEach(ao => {
+      // Special case: Hide tahini add-on for חצילים זעלוק (treated as implicit)
+      if (item.name.includes("זעלוק") && ao.name.includes("טחינה")) {
+        return; // Skip this add-on, don't display it
+      }
+
       const aoParts: string[] = [];
 
       // Regular quantity for add-on
@@ -525,7 +530,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    sectionId="salads"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "salads" && dragState.dragOverIndex === index}
                     highlightColor={itemColors[item.id]}
@@ -553,7 +557,6 @@ export function PrintOrderPage({
                     <PrintItemRow
                       key={item.id}
                       item={item}
-                      sectionId="middle_courses"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "middle_courses" && dragState.dragOverIndex === index}
                       highlightColor={itemColors[item.id]}
@@ -578,7 +581,6 @@ export function PrintOrderPage({
                     <PrintItemRow
                       key={item.id}
                       item={item}
-                      sectionId="extras"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "extras" && dragState.dragOverIndex === index}
                       highlightColor={itemColors[item.id]}
@@ -603,7 +605,6 @@ export function PrintOrderPage({
                     <PrintItemRow
                       key={item.id}
                       item={item}
-                      sectionId="bakery"
                       isDragging={dragState.draggedItem?.id === item.id}
                       isDragOver={dragState.dragOverSection === "bakery" && dragState.dragOverIndex === index}
                       highlightColor={itemColors[item.id]}
@@ -636,7 +637,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    sectionId="sides"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "sides" && dragState.dragOverIndex === index}
                     highlightColor={itemColors[item.id]}
@@ -661,7 +661,6 @@ export function PrintOrderPage({
                   <PrintItemRow
                     key={item.id}
                     item={item}
-                    sectionId="mains"
                     isDragging={dragState.draggedItem?.id === item.id}
                     isDragOver={dragState.dragOverSection === "mains" && dragState.dragOverIndex === index}
                     onHide={() => handleHideItem("mains", item.id)}
@@ -818,19 +817,15 @@ export function PrintOrderPage({
             overflow: hidden !important;
           }
 
-          /* Ensure text wraps properly in columns - critical for print */
+          /* Allow text to overflow beyond column boundaries */
           .print-content-grid > div {
-            overflow: hidden !important;
+            overflow: visible !important;
             min-width: 0 !important;
           }
 
-          /* Force text wrapping in print mode */
-          .print-content-grid span,
-          .print-content-grid div {
-            overflow-wrap: break-word !important;
-            word-wrap: break-word !important;
-            word-break: break-word !important;
-            hyphens: auto !important;
+          /* Keep name + quantity on same line, allow overflow */
+          .print-content-grid .whitespace-nowrap {
+            white-space: nowrap !important;
           }
         }
 
@@ -839,9 +834,9 @@ export function PrintOrderPage({
           height: calc(297mm - 20mm - 60px);
         }
 
-        /* Ensure proper text wrapping in columns */
+        /* Allow overflow beyond column boundaries on screen too */
         .print-content-grid > div {
-          overflow: hidden;
+          overflow: visible;
           min-width: 0;
         }
       `}</style>
@@ -852,7 +847,6 @@ export function PrintOrderPage({
 // Individual item row component
 interface PrintItemRowProps {
   item: PrintOrderItem;
-  sectionId: string;
   isDragging: boolean;
   isDragOver: boolean;
   highlightColor?: string;
@@ -868,7 +862,6 @@ interface PrintItemRowProps {
 
 function PrintItemRow({
   item,
-  sectionId,
   isDragging,
   isDragOver,
   highlightColor,
@@ -939,33 +932,36 @@ function PrintItemRow({
           {/* Drag handle - hidden when printing */}
           <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0 mt-0.5" />
 
-          <div className="flex-1 min-w-0 overflow-hidden">
-            {/* First line: Item name + quantity + price - wraps naturally */}
-            <div className="break-words" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+          <div className="flex-1">
+            {/* First line: Item name + quantity + price - ALWAYS on same line */}
+            <div className="whitespace-nowrap">
+              {/* Item name */}
               <span className={cn(
                 "font-bold text-xl",
                 item.isExtraItem && "text-red-600"
               )}>
                 {item.name}
               </span>
-              {/* Main Quantity - inline with name, wraps if needed */}
+              {/* Main Quantity - always same line as name */}
               {quantityStr && (
                 <span className={cn(
-                  "font-bold text-lg mr-2 whitespace-nowrap",
+                  "font-bold text-lg mr-2",
                   item.isExtraItem ? "text-red-600" : "text-gray-700"
                 )}> {quantityStr}</span>
               )}
               {/* Price display for extras items */}
               {item.price && item.price > 0 && (
-                <span className="font-bold text-lg mr-2 text-red-600 whitespace-nowrap">
+                <span className="font-bold text-lg text-red-600 mr-2">
                   (₪{item.price})
                 </span>
               )}
             </div>
-            {/* Second line: Preparation name (if exists) - wraps naturally */}
+            {/* Second line: Preparation name (if exists) - stays on its own line */}
             {item.preparation_name && (
-              <div className="text-lg font-bold text-gray-700 mr-6 break-words" style={{ overflowWrap: 'break-word', wordBreak: 'break-word' }}>
-                {item.preparation_name}
+              <div className="mr-6 whitespace-nowrap">
+                <span className="text-lg font-bold text-gray-700">
+                  {item.preparation_name}
+                </span>
               </div>
             )}
           </div>
@@ -995,10 +991,14 @@ function PrintItemRow({
         </div>
       </div>
 
-      {/* Add-ons row - displayed on separate line below item */}
+      {/* Add-ons row - displayed on separate line below item, each add-on is atomic */}
       {addOnsArr.length > 0 && (
-        <div className="mr-6 text-base leading-tight text-gray-700 font-bold">
-          {addOnsArr.join(" | ")}
+        <div className="mr-6 text-base leading-tight text-gray-700 font-bold flex flex-wrap gap-x-1">
+          {addOnsArr.map((addOn, idx) => (
+            <span key={idx} className="whitespace-nowrap inline-block">
+              {addOn}{idx < addOnsArr.length - 1 ? ' |' : ''}
+            </span>
+          ))}
         </div>
       )}
 
