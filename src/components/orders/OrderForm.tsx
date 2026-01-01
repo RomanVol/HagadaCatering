@@ -1505,7 +1505,7 @@ export function OrderForm() {
         }
       });
 
-      // Add sides items (using size-based quantities ג/ק or variations)
+      // Add sides items (supports variations)
       formState.sides.forEach((item) => {
         if (item.selected) {
           let isFirstItem = true;
@@ -1561,6 +1561,7 @@ export function OrderForm() {
                 preparation_id: item.preparation_id || null,
                 item_note: isFirstItem && item.note ? item.note : null,
               });
+              isFirstItem = false;
             }
           }
         }
@@ -1585,6 +1586,7 @@ export function OrderForm() {
           delivery_fee: formState.delivery_fee || undefined,
         },
         items,
+        extra_items: formState.extra_items,
       });
 
       if (result.success) {

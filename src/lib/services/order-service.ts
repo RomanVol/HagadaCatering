@@ -29,6 +29,20 @@ export interface SaveOrderInput {
     variation_id?: string | null; // For items with variations (e.g., rice types)
     add_on_id?: string | null; // For add-on items (e.g., רוטב לרול)
   }[];
+  // Extra items from mains/sides/middle_courses with custom prices
+  extra_items?: {
+    id: string;
+    source_food_item_id: string;
+    source_category: 'mains' | 'sides' | 'middle_courses';
+    name: string;
+    quantity?: number;
+    size_big?: number;
+    size_small?: number;
+    variations?: { variation_id: string; name: string; size_big: number; size_small: number }[];
+    price: number;
+    note?: string;
+    preparation_name?: string;
+  }[];
 }
 
 export interface SaveOrderResult {
@@ -193,6 +207,52 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
       }
     }
 
+    // Handle extra items (from mains/sides/middle_courses with custom prices)
+    if (input.extra_items && input.extra_items.length > 0) {
+      for (const extra of input.extra_items) {
+        const { data: extraItem, error: extraError } = await supabase
+          .from("extra_order_items")
+          .insert({
+            order_id: orderId,
+            source_food_item_id: extra.source_food_item_id,
+            source_category: extra.source_category,
+            name: extra.name,
+            quantity: extra.quantity || 0,
+            size_big: extra.size_big || 0,
+            size_small: extra.size_small || 0,
+            price: extra.price,
+            note: extra.note || null,
+            preparation_name: extra.preparation_name || null,
+          })
+          .select()
+          .single();
+
+        if (extraError) {
+          console.error("Error inserting extra order item:", extraError);
+          continue;
+        }
+
+        // Insert variations if any
+        if (extra.variations && extra.variations.length > 0 && extraItem) {
+          const { error: variationError } = await supabase
+            .from("extra_order_item_variations")
+            .insert(
+              extra.variations.map(v => ({
+                extra_order_item_id: extraItem.id,
+                variation_id: v.variation_id,
+                name: v.name,
+                size_big: v.size_big,
+                size_small: v.size_small,
+              }))
+            );
+
+          if (variationError) {
+            console.error("Error inserting extra item variations:", variationError);
+          }
+        }
+      }
+    }
+
     return {
       success: true,
       order,
@@ -327,6 +387,27 @@ export interface OrderWithDetails {
       name: string;
     };
   })[];
+  extra_items?: {
+    id: string;
+    order_id: string;
+    source_food_item_id: string;
+    source_category: 'mains' | 'sides' | 'middle_courses';
+    name: string;
+    quantity: number;
+    size_big: number;
+    size_small: number;
+    price: number;
+    note: string | null;
+    preparation_name: string | null;
+    variations?: {
+      id: string;
+      extra_order_item_id: string;
+      variation_id: string;
+      name: string;
+      size_big: number;
+      size_small: number;
+    }[];
+  }[];
 }
 
 /**
@@ -398,10 +479,24 @@ export async function getOrdersByDateRange(
     console.error("Error fetching order items:", itemsError);
   }
 
+  // Get extra items for these orders
+  const { data: extraItems, error: extraItemsError } = await supabase
+    .from("extra_order_items")
+    .select(`
+      *,
+      variations:extra_order_item_variations(*)
+    `)
+    .in("order_id", orderIds);
+
+  if (extraItemsError) {
+    console.error("Error fetching extra items:", extraItemsError);
+  }
+
   // Combine orders with their items
   let result = orders.map((order) => ({
     ...order,
     items: (items || []).filter((item) => item.order_id === order.id),
+    extra_items: (extraItems || []).filter((item) => item.order_id === order.id),
   }));
 
   // Apply customer name filter (client-side for joined table)
@@ -538,6 +633,19 @@ export async function getOrdersSummary(
 
   console.log("Order items:", items?.length, "error:", itemsError);
 
+  // Get extra items for these orders
+  const { data: extraItems, error: extraItemsError } = await supabase
+    .from("extra_order_items")
+    .select(`
+      *,
+      variations:extra_order_item_variations(*)
+    `)
+    .in("order_id", orderIds);
+
+  if (extraItemsError) {
+    console.error("Error fetching extra items:", extraItemsError);
+  }
+
   // Get add-on names and measurement_type separately if there are items with add_on_id
   const itemsWithAddOns = items?.filter(i => i.add_on_id) || [];
   const addOnsMap = new Map<string, { name: string; measurement_type: string }>();
@@ -593,6 +701,7 @@ export async function getOrdersSummary(
   // Aggregate by category and food item
   const summaryMap = new Map<string, Map<string, SummaryItem>>();
 
+  // Process regular items
   for (const item of items) {
     if (!item.food_item) continue;
 
@@ -703,6 +812,98 @@ export async function getOrdersSummary(
     // Handle regular quantities
     else {
       summaryItem.total_quantity = (summaryItem.total_quantity || 0) + item.quantity;
+    }
+  }
+
+  // Process extra items
+  if (extraItems) {
+    for (const extra of extraItems) {
+      // Find category
+      const category = categories.find(c => c.name_en === extra.source_category);
+      if (!category) continue;
+
+      if (!summaryMap.has(category.id)) {
+        summaryMap.set(category.id, new Map());
+      }
+      const categoryItems = summaryMap.get(category.id)!;
+
+      // Create key for aggregation
+      let itemKey = extra.source_food_item_id;
+      let displayName = extra.name;
+      
+      if (extra.preparation_name) {
+        itemKey += `_extra_prep_${extra.preparation_name}`;
+        displayName += ` (${extra.preparation_name})`;
+      }
+
+      if (!categoryItems.has(itemKey)) {
+        categoryItems.set(itemKey, {
+          food_item_id: extra.source_food_item_id,
+          food_name: displayName,
+          category_id: category.id,
+          category_name: category.name,
+          has_liters: false, // Extras don't support liters in current schema
+          liter_quantities: [],
+          size_quantities: [],
+          total_quantity: 0,
+          is_add_on: false,
+          is_variation: false,
+          has_preparation: !!extra.preparation_name,
+          preparation_name: extra.preparation_name,
+        });
+      }
+
+      const summaryItem = categoryItems.get(itemKey)!;
+
+      if (extra.size_big > 0) {
+        const existing = summaryItem.size_quantities?.find(sq => sq.size_type === 'big');
+        if (existing) existing.total_quantity += extra.size_big;
+        else summaryItem.size_quantities?.push({ size_type: 'big', size_label: 'ג׳', total_quantity: extra.size_big });
+      }
+      if (extra.size_small > 0) {
+        const existing = summaryItem.size_quantities?.find(sq => sq.size_type === 'small');
+        if (existing) existing.total_quantity += extra.size_small;
+        else summaryItem.size_quantities?.push({ size_type: 'small', size_label: 'ק׳', total_quantity: extra.size_small });
+      }
+      if (extra.quantity > 0) {
+        summaryItem.total_quantity = (summaryItem.total_quantity || 0) + extra.quantity;
+      }
+
+      // Handle variations in extra item
+      if (extra.variations && extra.variations.length > 0) {
+        for (const v of extra.variations) {
+          const varKey = `${extra.source_food_item_id}_extra_var_${v.variation_id}`;
+          const varName = `${extra.name} - ${v.name}`;
+          
+          if (!categoryItems.has(varKey)) {
+            categoryItems.set(varKey, {
+              food_item_id: extra.source_food_item_id,
+              food_name: varName,
+              category_id: category.id,
+              category_name: category.name,
+              has_liters: false,
+              liter_quantities: [],
+              size_quantities: [],
+              total_quantity: 0,
+              is_add_on: false,
+              is_variation: true,
+              variation_name: v.name
+            });
+          }
+          
+          const varItem = categoryItems.get(varKey)!;
+          if (v.size_big > 0) {
+            const existing = varItem.size_quantities?.find(sq => sq.size_type === 'big');
+            if (existing) existing.total_quantity += v.size_big;
+            else varItem.size_quantities?.push({ size_type: 'big', size_label: 'ג׳', total_quantity: v.size_big });
+          }
+          if (v.size_small > 0) {
+            const existing = varItem.size_quantities?.find(sq => sq.size_type === 'small');
+            if (existing) existing.total_quantity += v.size_small;
+            else varItem.size_quantities?.push({ size_type: 'small', size_label: 'ק׳', total_quantity: v.size_small });
+          }
+        }
+      }
     }
   }
 

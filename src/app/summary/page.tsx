@@ -413,6 +413,14 @@ export default function SummaryPage() {
       }
     }
 
+    // Calculate total price of extra items
+    const extraItemsPrice = order.extra_items?.reduce((sum, item) => sum + item.price, 0) || 0;
+    
+    // Calculate total payment
+    const totalPayment = (order.total_portions && order.price_per_portion)
+      ? (order.total_portions * order.price_per_portion) + (order.delivery_fee || 0) + extraItemsPrice
+      : (extraItemsPrice > 0 ? extraItemsPrice : undefined);
+
     return {
       customer: {
         name: order.customer?.name || "",
@@ -423,6 +431,10 @@ export default function SummaryPage() {
         date: order.order_date,
         time: order.order_time || "",
         notes: order.notes || "",
+        totalPortions: order.total_portions || undefined,
+        pricePerPortion: order.price_per_portion || undefined,
+        deliveryFee: order.delivery_fee || undefined,
+        totalPayment: totalPayment,
       },
       salads,
       middleCourses,
@@ -430,6 +442,24 @@ export default function SummaryPage() {
       mains,
       extras,
       bakery,
+      extraItems: order.extra_items?.map(e => ({
+        id: e.id,
+        source_food_item_id: e.source_food_item_id,
+        source_category: e.source_category,
+        name: e.name,
+        quantity: e.quantity,
+        size_big: e.size_big,
+        size_small: e.size_small,
+        variations: e.variations?.map(v => ({
+          variation_id: v.variation_id,
+          name: v.name,
+          size_big: v.size_big,
+          size_small: v.size_small
+        })),
+        price: e.price,
+        note: e.note || undefined,
+        preparation_name: e.preparation_name || undefined
+      })) || [],
     };
   };
 
@@ -685,7 +715,7 @@ export default function SummaryPage() {
                     </div>
 
                     {/* Customer details grid */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                       {/* Customer name */}
                       <div className="flex items-center gap-2 text-gray-800">
                         <User className="w-4 h-4 text-gray-400 flex-shrink-0" />
@@ -732,7 +762,7 @@ export default function SummaryPage() {
 
                       {/* Address */}
                       {order.delivery_address && (
-                        <div className="flex items-center gap-2 text-gray-600 text-sm col-span-2">
+                        <div className="flex items-center gap-2 text-gray-600 text-sm sm:col-span-2">
                           <MapPin className="w-4 h-4 text-red-400 flex-shrink-0" />
                           <span className="truncate">{order.delivery_address}</span>
                         </div>
@@ -756,7 +786,7 @@ export default function SummaryPage() {
 
                       {/* Notes preview */}
                       {order.notes && (
-                        <div className="flex items-center gap-2 text-amber-600 text-sm col-span-2">
+                        <div className="flex items-center gap-2 text-amber-600 text-sm sm:col-span-2">
                           <FileText className="w-4 h-4 text-amber-400 flex-shrink-0" />
                           <span className="truncate">{order.notes}</span>
                         </div>
@@ -812,7 +842,46 @@ export default function SummaryPage() {
                       </div>
                     ))}
 
-                    {order.items.length === 0 && (
+                    {/* Extra Items Section */}
+                    {order.extra_items && order.extra_items.length > 0 && (
+                      <div className="mb-4 last:mb-0">
+                        <h4 className="font-semibold text-red-700 mb-2 pb-1 border-b border-red-200">
+                          פריטי אקסטרה
+                        </h4>
+                        <div className="space-y-1">
+                          {order.extra_items.map((item) => (
+                            <div
+                              key={item.id}
+                              className="flex items-center justify-between text-sm py-1"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-gray-700 font-medium">
+                                  {item.name}
+                                  {item.preparation_name && ` (${item.preparation_name})`}
+                                </span>
+                                {item.variations && item.variations.length > 0 && (
+                                  <span className="text-xs text-gray-500">
+                                    {item.variations.map(v => `${v.name} (ג:${v.size_big}, ק:${v.size_small})`).join(", ")}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-900 font-medium">
+                                  {item.quantity > 0 ? `× ${item.quantity}` : 
+                                   (item.size_big > 0 || item.size_small > 0) ? 
+                                   `${item.size_big > 0 ? `ג׳:${item.size_big}` : ''} ${item.size_small > 0 ? `ק׳:${item.size_small}` : ''}` : ''}
+                                </span>
+                                <span className="text-red-600 font-bold text-xs bg-red-50 px-1.5 py-0.5 rounded">
+                                  ₪{item.price}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {order.items.length === 0 && (!order.extra_items || order.extra_items.length === 0) && (
                       <p className="text-gray-500 text-sm text-center py-4">
                         אין פריטים בהזמנה
                       </p>

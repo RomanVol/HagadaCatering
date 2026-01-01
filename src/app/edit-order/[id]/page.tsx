@@ -332,6 +332,19 @@ export default function EditOrderPage() {
           `)
           .eq("order_id", orderId);
 
+        // Get extra order items (custom items)
+        const { data: extraOrderItems, error: extraItemsErr } = await supabase
+          .from("extra_order_items")
+          .select(`
+            *,
+            variations:extra_order_item_variations(*)
+          `)
+          .eq("order_id", orderId);
+
+        if (extraItemsErr) {
+          console.error("Error loading extra items:", extraItemsErr);
+        }
+
         // Populate form with order data
         setFormState((prev) => {
           const newState = { ...prev };
@@ -471,6 +484,28 @@ export default function EditOrderPage() {
                 }
               }
             }
+          }
+
+          // Populate extra items
+          if (extraOrderItems) {
+            newState.extra_items = extraOrderItems.map(item => ({
+              id: item.id,
+              source_food_item_id: item.source_food_item_id,
+              source_category: item.source_category,
+              name: item.name,
+              quantity: item.quantity,
+              size_big: item.size_big,
+              size_small: item.size_small,
+              price: item.price,
+              note: item.note || undefined,
+              preparation_name: item.preparation_name || undefined,
+              variations: item.variations?.map((v: any) => ({
+                variation_id: v.variation_id,
+                name: v.name,
+                size_big: v.size_big,
+                size_small: v.size_small
+              }))
+            }));
           }
 
           return newState;
