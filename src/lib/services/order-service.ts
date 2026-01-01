@@ -152,6 +152,16 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
       };
     }
 
+    // Helper function to get valid liter_size_id (null for custom liters)
+    const getValidLiterSizeId = (literSizeId: string | null): string | null => {
+      if (!literSizeId) return null;
+      // Custom liter IDs start with "custom_" - these are not valid UUIDs for the liter_sizes table
+      if (literSizeId.startsWith("custom_")) {
+        return null;
+      }
+      return literSizeId;
+    };
+
     // 3. Create order items (filter out items with 0 quantity)
     const orderItems = input.items
       .filter((item) => item.quantity > 0)
@@ -159,7 +169,7 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
         id: uuidv4(),
         order_id: orderId,
         food_item_id: item.food_item_id,
-        liter_size_id: item.liter_size_id || null,
+        liter_size_id: getValidLiterSizeId(item.liter_size_id),
         size_type: item.size_type || null, // For size-based measurements (ג/ק)
         quantity: item.quantity,
         item_note: item.item_note || null, // Free-text note for this item
@@ -881,6 +891,15 @@ export async function updateOrder(
       add_on_id: string | null;
     }[] = [];
 
+    // Helper function to get valid liter_size_id (null for custom liters)
+    const getValidLiterSizeId = (literSizeId: string): string | null => {
+      // Custom liter IDs start with "custom_" - these are not valid UUIDs for the liter_sizes table
+      if (literSizeId.startsWith("custom_")) {
+        return null;
+      }
+      return literSizeId;
+    };
+
     // Add salad items
     for (const salad of input.salads) {
       if (!salad.selected) continue;
@@ -893,7 +912,7 @@ export async function updateOrder(
               id: uuidv4(),
               order_id: orderId,
               food_item_id: salad.food_item_id,
-              liter_size_id: liter.liter_size_id,
+              liter_size_id: getValidLiterSizeId(liter.liter_size_id),
               size_type: null,
               quantity: liter.quantity,
               item_note: isFirstItem && salad.note ? salad.note : null,
@@ -972,7 +991,7 @@ export async function updateOrder(
                 id: uuidv4(),
                 order_id: orderId,
                 food_item_id: salad.food_item_id,
-                liter_size_id: liter.liter_size_id,
+                liter_size_id: getValidLiterSizeId(liter.liter_size_id),
                 size_type: null,
                 quantity: liter.quantity,
                 item_note: null,
@@ -1024,7 +1043,7 @@ export async function updateOrder(
               id: uuidv4(),
               order_id: orderId,
               food_item_id: item.food_item_id,
-              liter_size_id: liter.liter_size_id,
+              liter_size_id: getValidLiterSizeId(liter.liter_size_id),
               size_type: null,
               quantity: liter.quantity,
               item_note: isFirstItem && item.note ? item.note : null,
@@ -1094,7 +1113,7 @@ export async function updateOrder(
               id: uuidv4(),
               order_id: orderId,
               food_item_id: item.food_item_id,
-              liter_size_id: liter.liter_size_id,
+              liter_size_id: getValidLiterSizeId(liter.liter_size_id),
               size_type: null,
               quantity: liter.quantity,
               item_note: isFirstItem && item.note ? item.note : null,
