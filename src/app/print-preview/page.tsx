@@ -306,11 +306,13 @@ export default function PrintPreviewPage() {
     });
 
     // Add middle course items - all items with selected status
-    // If item has an extra entry, add extra quantity to the display
+    // If item has an extra entry, add extra quantity to the display AND mark as selected
     printData.middleCourses.forEach((item) => {
       // Find if this item has an extra entry
-      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id && e.source_category === 'middle_courses');
       const combinedQuantity = (item.quantity || 0) + (extraItem?.quantity || 0);
+      // If there's an extra item for this food item, mark as selected even if not originally selected
+      const isSelected = item.selected || !!extraItem;
 
       items.push({
         id: item.food_item_id,
@@ -318,10 +320,10 @@ export default function PrintPreviewPage() {
         name: item.name,
         category_id: middleCategory?.id || "",
         category_name: "מנות ביניים",
-        selected: item.selected,
+        selected: isSelected,
         quantity: combinedQuantity,
-        preparation_name: item.preparation_name,
-        note: item.note,
+        preparation_name: item.preparation_name || extraItem?.preparation_name,
+        note: item.note || extraItem?.note,
         sort_order: sortOrder++,
         isVisible: true,
       });
@@ -353,12 +355,14 @@ export default function PrintPreviewPage() {
     });
 
     // Add sides items - all items with selected status
-    // If item has an extra entry, add extra quantity to the display
+    // If item has an extra entry, add extra quantity to the display AND mark as selected
     sortedSides.forEach((item) => {
       // Find if this item has an extra entry
-      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id && e.source_category === 'sides');
       const combinedSizeBig = (item.size_big || 0) + (extraItem?.size_big || 0);
       const combinedSizeSmall = (item.size_small || 0) + (extraItem?.size_small || 0);
+      // If there's an extra item for this food item, mark as selected even if not originally selected
+      const isSelected = item.selected || !!extraItem;
 
       // For variations, also combine with extra variations if they exist
       let combinedVariations = item.variations?.map(v => ({
@@ -391,12 +395,12 @@ export default function PrintPreviewPage() {
         name: item.name,
         category_id: sidesCategory?.id || "",
         category_name: "תוספות",
-        selected: item.selected,
+        selected: isSelected,
         size_big: combinedSizeBig,
         size_small: combinedSizeSmall,
         variations: combinedVariations,
-        preparation_name: item.preparation_name,
-        note: item.note,
+        preparation_name: item.preparation_name || extraItem?.preparation_name,
+        note: item.note || extraItem?.note,
         sort_order: sortOrder++,
         isVisible: true,
       });
@@ -443,11 +447,13 @@ export default function PrintPreviewPage() {
     });
 
     // Add mains items - all items with selected status, with calculated quantities
-    // If item has an extra entry, add extra quantity to the display
+    // If item has an extra entry, add extra quantity to the display AND mark as selected
     sortedMains.forEach((item) => {
       // Find if this item has an extra entry
-      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id);
+      const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id && e.source_category === 'mains');
       const combinedQuantity = (item.quantity || 0) + (extraItem?.quantity || 0);
+      // If there's an extra item for this food item, mark as selected even if not originally selected
+      const isSelected = item.selected || !!extraItem;
 
       const calculatedQuantity = calculatePortionDisplay(
         combinedQuantity,
@@ -461,13 +467,13 @@ export default function PrintPreviewPage() {
         name: item.name,
         category_id: mainsCategory?.id || "",
         category_name: "עיקריות",
-        selected: item.selected,
+        selected: isSelected,
         quantity: combinedQuantity,
         portion_multiplier: item.portion_multiplier,
         portion_unit: item.portion_unit,
         calculatedQuantity,
-        preparation_name: item.preparation_name,
-        note: item.note,
+        preparation_name: item.preparation_name || extraItem?.preparation_name,
+        note: item.note || extraItem?.note,
         sort_order: sortOrder++,
         isVisible: true,
       });

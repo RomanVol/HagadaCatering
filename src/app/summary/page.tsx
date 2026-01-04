@@ -425,11 +425,13 @@ export default function SummaryPage() {
       customer: {
         name: order.customer?.name || "",
         phone: order.customer?.phone || "",
+        phone2: order.customer?.phone_alt || "",
         address: order.delivery_address || order.customer?.address || "",
       },
       order: {
         date: order.order_date,
         time: order.order_time || "",
+        customerTime: order.customer_time || "",
         notes: order.notes || "",
         totalPortions: order.total_portions || undefined,
         pricePerPortion: order.price_per_portion || undefined,
