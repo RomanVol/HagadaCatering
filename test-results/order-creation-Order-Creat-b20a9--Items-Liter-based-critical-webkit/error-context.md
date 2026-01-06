@@ -1,0 +1,269 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "סיכום הזמנות" [ref=e4]:
+        - /url: /summary
+        - img [ref=e5]
+      - link "ניהול" [ref=e7]:
+        - /url: /admin
+        - img [ref=e8]
+      - button "יציאה" [ref=e11]:
+        - img [ref=e12]
+        - text: יציאה
+    - generic [ref=e15]:
+      - banner [ref=e16]:
+        - heading "הזמנה חדשה" [level=1] [ref=e18]
+      - main [ref=e19]:
+        - generic [ref=e21]:
+          - heading "פרטי לקוח לקוח בדיקה • 0501234567" [level=3] [ref=e22]:
+            - button "פרטי לקוח לקוח בדיקה • 0501234567" [expanded] [ref=e23]:
+              - generic [ref=e24]:
+                - generic [ref=e25]: פרטי לקוח
+                - generic [ref=e26]: לקוח בדיקה • 0501234567
+              - img [ref=e27]
+          - region "פרטי לקוח לקוח בדיקה • 0501234567" [ref=e29]:
+            - generic [ref=e31]:
+              - generic [ref=e32]:
+                - generic [ref=e33]:
+                  - generic [ref=e34]: שם
+                  - textbox "שם" [ref=e35]:
+                    - /placeholder: שם הלקוח
+                    - text: לקוח בדיקה
+                - generic [ref=e36]:
+                  - generic [ref=e37]: טלפון
+                  - textbox "טלפון" [ref=e38]:
+                    - /placeholder: 050-0000000
+                    - text: "0501234567"
+              - generic [ref=e39]:
+                - generic [ref=e40]:
+                  - generic [ref=e41]: טלפון נוסף
+                  - textbox "טלפון נוסף" [ref=e42]:
+                    - /placeholder: טלפון נוסף (אופציונלי)
+                - generic [ref=e43]:
+                  - generic [ref=e44]: זמן ללקוח
+                  - textbox "זמן ללקוח" [ref=e45]: 12:00
+              - generic [ref=e46]:
+                - generic [ref=e47]:
+                  - generic [ref=e48]:
+                    - generic [ref=e49]: תאריך
+                    - textbox "תאריך" [ref=e50]: 2026-01-05
+                  - generic: יום שני
+                - generic [ref=e51]:
+                  - generic [ref=e52]: זמן למטבח
+                  - textbox "זמן למטבח" [ref=e53]
+              - generic [ref=e54]:
+                - generic [ref=e55]: כתובת
+                - textbox "כתובת" [ref=e56]:
+                  - /placeholder: כתובת למשלוח
+              - generic [ref=e57]:
+                - generic [ref=e58]: הערות
+                - textbox "הערות" [ref=e59]:
+                  - /placeholder: הערות להזמנה
+              - generic [ref=e60]:
+                - heading "תמחור" [level=4] [ref=e61]
+                - generic [ref=e62]:
+                  - generic [ref=e63]:
+                    - generic [ref=e64]: סה״כ מנות
+                    - spinbutton "סה״כ מנות" [ref=e65]
+                  - generic [ref=e66]:
+                    - generic [ref=e67]: מחיר בסיס למנה
+                    - spinbutton "מחיר בסיס למנה" [ref=e68]
+                - generic [ref=e69]:
+                  - generic [ref=e70]:
+                    - generic [ref=e71]: הובלה
+                    - spinbutton "הובלה" [ref=e72]
+                  - generic [ref=e73]:
+                    - text: סה״כ לתשלום
+                    - generic [ref=e75]: ₪0
+        - generic [ref=e76]:
+          - generic [ref=e77]:
+            - heading "סלטים (10 לבחירה) 1/10" [level=3] [ref=e78]:
+              - button "סלטים (10 לבחירה) 1/10" [expanded] [ref=e79]:
+                - generic [ref=e80]:
+                  - generic [ref=e81]: סלטים (10 לבחירה)
+                  - generic [ref=e82]: 1/10
+                - img [ref=e83]
+            - region "סלטים (10 לבחירה) 1/10" [ref=e85]:
+              - generic [ref=e86]:
+                - generic [ref=e88]:
+                  - generic [ref=e89]: "החל על כל הסלטים המסומנים:"
+                  - generic [ref=e90]:
+                    - generic [ref=e91]:
+                      - generic [ref=e92]: 4.5L
+                      - generic [ref=e93]: ×
+                      - spinbutton [ref=e94]: "0"
+                    - generic [ref=e95]:
+                      - generic [ref=e96]: 3L
+                      - generic [ref=e97]: ×
+                      - spinbutton [ref=e98]: "0"
+                    - generic [ref=e99]:
+                      - generic [ref=e100]: 2.5L
+                      - generic [ref=e101]: ×
+                      - spinbutton [ref=e102]: "0"
+                    - generic [ref=e103]:
+                      - generic [ref=e104]: 1.5L
+                      - generic [ref=e105]: ×
+                      - spinbutton [ref=e106]: "0"
+                  - button "החל על כולם" [ref=e107]
+                - generic [ref=e108]:
+                  - button "חומוס" [ref=e109]:
+                    - generic [ref=e110]: חומוס
+                  - button "טחינה" [ref=e111]:
+                    - generic [ref=e112]: טחינה
+                  - button "1 חצילים זעלוק" [ref=e113]:
+                    - generic [ref=e115]:
+                      - img [ref=e116]
+                      - text: "1"
+                    - generic [ref=e117]: חצילים זעלוק
+                  - button "מטבוחה בחר גדלים" [ref=e118]:
+                    - img [ref=e120]
+                    - generic [ref=e122]: מטבוחה
+                    - generic [ref=e123]: בחר גדלים
+                  - button "ירקות" [ref=e124]:
+                    - generic [ref=e125]: ירקות
+                  - button "חציל בלאדי" [ref=e126]:
+                    - generic [ref=e127]: חציל בלאדי
+                  - button "פלפל חריף" [ref=e128]:
+                    - generic [ref=e129]: פלפל חריף
+                  - button "כרוב סגול" [ref=e130]:
+                    - generic [ref=e131]: כרוב סגול
+                  - button "ג׳/ק׳ כרוב" [ref=e132]:
+                    - generic [ref=e134]: ג׳/ק׳
+                    - generic [ref=e135]: כרוב
+                  - button "גזר מבושל" [ref=e136]:
+                    - generic [ref=e137]: גזר מבושל
+                  - button "גזר חי" [ref=e138]:
+                    - generic [ref=e139]: גזר חי
+                  - button "ירק פיצוחים" [ref=e140]:
+                    - generic [ref=e141]: ירק פיצוחים
+                  - button "טאבולה" [ref=e142]:
+                    - generic [ref=e143]: טאבולה
+                  - button "חציל מטוגן" [ref=e144]:
+                    - generic [ref=e145]: חציל מטוגן
+                  - button "לימון צ׳רמלה" [ref=e146]:
+                    - generic [ref=e147]: לימון צ׳רמלה
+                  - button "זיתים" [ref=e148]:
+                    - generic [ref=e149]: זיתים
+                  - button "קונסולו" [ref=e150]:
+                    - generic [ref=e151]: קונסולו
+                  - button "כרוב אדום במיונז" [ref=e152]:
+                    - generic [ref=e153]: כרוב אדום במיונז
+                  - button "ג׳/ק׳ כרוב אדום חמוץ" [ref=e154]:
+                    - generic [ref=e156]: ג׳/ק׳
+                    - generic [ref=e157]: כרוב אדום חמוץ
+                  - button "מלפפון בשמיר" [ref=e158]:
+                    - generic [ref=e159]: מלפפון בשמיר
+                  - button "חמוצי הבית" [ref=e160]:
+                    - generic [ref=e161]: חמוצי הבית
+                  - button "תירס ופתריות" [ref=e162]:
+                    - generic [ref=e163]: תירס ופתריות
+                  - button "ערבי" [ref=e164]:
+                    - generic [ref=e165]: ערבי
+                  - button "פול" [ref=e166]:
+                    - generic [ref=e167]: פול
+                  - button "סלק" [ref=e168]:
+                    - generic [ref=e169]: סלק
+                  - button "מיונז" [ref=e170]:
+                    - generic [ref=e171]: מיונז
+                  - button "ג׳/ק׳ חסה" [ref=e172]:
+                    - generic [ref=e174]: ג׳/ק׳
+                    - generic [ref=e175]: חסה
+                  - button "ג׳/ק׳ 2 כרוב אסייתי" [ref=e176]:
+                    - generic [ref=e177]:
+                      - generic [ref=e178]: ג׳/ק׳
+                      - generic [ref=e179]:
+                        - img [ref=e180]
+                        - text: "2"
+                    - generic [ref=e181]: כרוב אסייתי
+                  - button "ירוק" [ref=e182]:
+                    - generic [ref=e183]: ירוק
+                  - button "שקדים וצימוקים" [ref=e184]:
+                    - generic [ref=e185]: שקדים וצימוקים
+                  - button "שרי" [ref=e186]:
+                    - generic [ref=e187]: שרי
+                  - button "בטטה" [ref=e188]:
+                    - generic [ref=e189]: בטטה
+                  - button "רוטב לרול" [ref=e190]:
+                    - generic [ref=e191]: רוטב לרול
+                - generic [ref=e194]:
+                  - generic [ref=e195]:
+                    - heading "מטבוחה" [level=3] [ref=e196]
+                    - button "✕" [ref=e197]
+                  - generic [ref=e199]:
+                    - generic [ref=e200]:
+                      - generic [ref=e201]: 4.5L
+                      - generic [ref=e202]:
+                        - button "−" [ref=e203]
+                        - spinbutton [ref=e204]: "0"
+                        - button "+" [ref=e205]
+                    - generic [ref=e206]:
+                      - generic [ref=e207]: 3L
+                      - generic [ref=e208]:
+                        - button "−" [ref=e209]
+                        - spinbutton [ref=e210]: "0"
+                        - button "+" [ref=e211]
+                    - generic [ref=e212]:
+                      - generic [ref=e213]: 2.5L
+                      - generic [ref=e214]:
+                        - button "−" [ref=e215]
+                        - spinbutton [ref=e216]: "0"
+                        - button "+" [ref=e217]
+                    - generic [ref=e218]:
+                      - generic [ref=e219]: 1.5L
+                      - generic [ref=e220]:
+                        - button "−" [ref=e221]
+                        - spinbutton [ref=e222]: "0"
+                        - button "+" [ref=e223]
+                  - generic [ref=e224]:
+                    - generic [ref=e225]: 📝 הערות לסלט
+                    - 'textbox "הוסף הערה (למשל: בלי בצל, פחות מלח...)" [ref=e226]'
+                  - generic [ref=e227]:
+                    - button "ביטול" [ref=e228]
+                    - button "אישור" [ref=e229]
+          - heading "מנות ביניים (2 לבחירה) 0/2" [level=3] [ref=e231]:
+            - button "מנות ביניים (2 לבחירה) 0/2" [ref=e232]:
+              - generic [ref=e233]:
+                - generic [ref=e234]: מנות ביניים (2 לבחירה)
+                - generic [ref=e235]: 0/2
+              - img [ref=e236]
+          - heading "תוספות (3 לבחירה) 0/3" [level=3] [ref=e239]:
+            - button "תוספות (3 לבחירה) 0/3" [ref=e240]:
+              - generic [ref=e241]:
+                - generic [ref=e242]: תוספות (3 לבחירה)
+                - generic [ref=e243]: 0/3
+              - img [ref=e244]
+          - heading "עיקריות (3 לבחירה) 0/3" [level=3] [ref=e247]:
+            - button "עיקריות (3 לבחירה) 0/3" [ref=e248]:
+              - generic [ref=e249]:
+                - generic [ref=e250]: עיקריות (3 לבחירה)
+                - generic [ref=e251]: 0/3
+              - img [ref=e252]
+          - heading "אקסטרות (ללא הגבלה) 0" [level=3] [ref=e255]:
+            - button "אקסטרות (ללא הגבלה) 0" [ref=e256]:
+              - generic [ref=e257]:
+                - generic [ref=e258]: אקסטרות (ללא הגבלה)
+                - generic [ref=e259]: "0"
+              - img [ref=e260]
+          - heading "לחם, מאפים וקינוחים (ללא הגבלה) 0" [level=3] [ref=e263]:
+            - button "לחם, מאפים וקינוחים (ללא הגבלה) 0" [ref=e264]:
+              - generic [ref=e265]:
+                - generic [ref=e266]: לחם, מאפים וקינוחים (ללא הגבלה)
+                - generic [ref=e267]: "0"
+              - img [ref=e268]
+      - generic [ref=e271]:
+        - button "הזמנה חדשה" [ref=e272]:
+          - img [ref=e273]
+          - text: הזמנה חדשה
+        - button "שמור" [ref=e276]:
+          - img [ref=e277]
+          - text: שמור
+        - button "הדפס" [ref=e281]:
+          - img [ref=e282]
+          - text: הדפס
+  - button "Open Next.js Dev Tools" [ref=e291] [cursor=pointer]:
+    - img [ref=e292]
+  - alert [ref=e297]
+```

@@ -16,6 +16,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     const checkAuth = async () => {
+      // Check for test mode authentication (for Playwright tests)
+      const isTestMode = typeof window !== 'undefined' && localStorage.getItem('mock-auth') === 'true';
+
+      if (isTestMode) {
+        setIsAuthenticated(true);
+        setIsChecking(false);
+        return;
+      }
+
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -30,6 +39,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
     };
 
     checkAuth();
+
+    // Check for test mode - skip auth state listener in test mode
+    const isTestMode = typeof window !== 'undefined' && localStorage.getItem('mock-auth') === 'true';
+    if (isTestMode) {
+      return;
+    }
 
     // Listen for auth state changes
     const supabase = createClient();
