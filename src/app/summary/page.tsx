@@ -117,6 +117,80 @@ export default function SummaryPage() {
   const [selectedCategories, setSelectedCategories] = React.useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
 
+  // Restore filters from sessionStorage on mount
+  React.useEffect(() => {
+    const savedState = sessionStorage.getItem("summaryPageState");
+    if (savedState) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.fromDate) setFromDate(state.fromDate);
+        if (state.toDate) setToDate(state.toDate);
+        if (state.customerNameFilter) setCustomerNameFilter(state.customerNameFilter);
+        if (state.phoneFilter) setPhoneFilter(state.phoneFilter);
+        if (state.expandedOrderId) setExpandedOrderId(state.expandedOrderId);
+        if (state.viewMode) setViewMode(state.viewMode);
+        if (state.hasSearched) setHasSearched(state.hasSearched);
+        // Trigger search if we have filters
+        if (state.hasSearched && (state.fromDate || state.toDate || state.customerNameFilter || state.phoneFilter)) {
+          // We'll re-fetch in the next effect
+        }
+      } catch (e) {
+        console.error("Error restoring summary state:", e);
+      }
+    }
+  }, []);
+
+  // Re-fetch orders when filters are restored
+  React.useEffect(() => {
+    const savedState = sessionStorage.getItem("summaryPageState");
+    if (savedState && !dataLoading) {
+      try {
+        const state = JSON.parse(savedState);
+        if (state.hasSearched && (state.fromDate || state.toDate || state.customerNameFilter || state.phoneFilter)) {
+          // Re-run the filter
+          const fetchOrders = async () => {
+            setIsLoading(true);
+            try {
+              const filters = {
+                customerName: state.customerNameFilter || undefined,
+                phone: state.phoneFilter || undefined,
+              };
+              const [ordersData, summaryData] = await Promise.all([
+                getOrdersByDateRange(state.fromDate || undefined, state.toDate || undefined, filters),
+                getOrdersSummary(state.fromDate || undefined, state.toDate || undefined, filters),
+              ]);
+              setOrders(ordersData);
+              setSummary(summaryData);
+            } catch (error) {
+              console.error("Error fetching data:", error);
+            } finally {
+              setIsLoading(false);
+            }
+          };
+          fetchOrders();
+          // Clear the saved state after restoring
+          sessionStorage.removeItem("summaryPageState");
+        }
+      } catch (e) {
+        console.error("Error re-fetching orders:", e);
+      }
+    }
+  }, [dataLoading]);
+
+  // Save current filters to sessionStorage before navigating away
+  const saveFiltersToSession = () => {
+    const state = {
+      fromDate,
+      toDate,
+      customerNameFilter,
+      phoneFilter,
+      expandedOrderId,
+      viewMode,
+      hasSearched,
+    };
+    sessionStorage.setItem("summaryPageState", JSON.stringify(state));
+  };
+
   // Quick filter handlers
   const setToday = () => {
     const today = new Date();
@@ -266,7 +340,54 @@ export default function SummaryPage() {
 
   // Transform OrderWithDetails to StoredPrintData format for print-preview
   const transformOrderToPrintData = (order: OrderWithDetails) => {
-    // Group items by food_item_id, aggregating liters and handling size_type
+    // First, separate main items from add-on items
+    const mainItems = order.items.filter(item => !item.add_on_id);
+    const addOnItems = order.items.filter(item => item.add_on_id);
+
+    // Group add-ons by parent food_item_id
+    const addOnsByParent = new Map<string, {
+      addon_id: string;
+      name: string;
+      quantity: number;
+      liters: { liter_size_id: string; label: string; quantity: number }[];
+    }[]>();
+
+    for (const addOnItem of addOnItems) {
+      if (!addOnItem.add_on) continue;
+      
+      const parentId = addOnItem.food_item_id;
+      if (!addOnsByParent.has(parentId)) {
+        addOnsByParent.set(parentId, []);
+      }
+
+      const addOnsForParent = addOnsByParent.get(parentId)!;
+      
+      // Find existing add-on entry or create new one
+      let addOnEntry = addOnsForParent.find(ao => ao.addon_id === addOnItem.add_on_id);
+      if (!addOnEntry) {
+        addOnEntry = {
+          addon_id: addOnItem.add_on_id!,
+          name: addOnItem.add_on.name,
+          quantity: 0,
+          liters: [],
+        };
+        addOnsForParent.push(addOnEntry);
+      }
+
+      // Handle liter quantities for add-on
+      if (addOnItem.liter_size_id && addOnItem.liter_size) {
+        addOnEntry.liters.push({
+          liter_size_id: addOnItem.liter_size_id,
+          label: addOnItem.liter_size.label,
+          quantity: addOnItem.quantity,
+        });
+      } else {
+        // Regular quantity for add-on
+        addOnEntry.quantity += addOnItem.quantity;
+      }
+    }
+
+    // Group main items by food_item_id, aggregating liters and handling size_type
     const itemsByFoodItem = new Map<string, {
       food_item_id: string;
       name: string;
@@ -280,7 +401,7 @@ export default function SummaryPage() {
       preparation_name: string;
     }>();
 
-    for (const item of order.items) {
+    for (const item of mainItems) {
       if (!item.food_item) continue;
 
       const foodItemId = item.food_item_id;
@@ -335,6 +456,7 @@ export default function SummaryPage() {
       name: string;
       selected: boolean;
       measurement_type: string;
+      isBulkApplied?: boolean;
       liters: { liter_size_id: string; label: string; quantity: number }[];
       size_big: number;
       size_small: number;
@@ -353,6 +475,9 @@ export default function SummaryPage() {
                          item.size_small > 0 || item.regular_quantity > 0;
 
       if (item.category_id === saladsCategory?.id) {
+        // Get add-ons for this salad
+        const itemAddOns = addOnsByParent.get(item.food_item_id) || [];
+        
         salads.push({
           food_item_id: item.food_item_id,
           name: item.name,
@@ -363,7 +488,8 @@ export default function SummaryPage() {
           size_small: item.size_small,
           regular_quantity: item.regular_quantity,
           note: item.note,
-          addOns: [],
+          addOns: itemAddOns,
+          isBulkApplied: false, // Will be updated below
         });
       } else if (item.category_id === middleCategory?.id) {
         middleCourses.push({
@@ -412,6 +538,39 @@ export default function SummaryPage() {
         });
       }
     }
+
+    // Detect common liter patterns in salads and mark them as isBulkApplied
+    // This allows the print-preview page to aggregate and display common liter patterns
+    const getLiterSignature = (liters: { label: string; quantity: number }[]) => {
+      if (liters.length === 0) return null;
+      const sorted = [...liters]
+        .filter(l => l.quantity > 0)
+        .map(l => ({ label: l.label, quantity: l.quantity }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      if (sorted.length === 0) return null;
+      return JSON.stringify(sorted);
+    };
+
+    // Count occurrences of each liter signature
+    const signatureCounts = new Map<string, number>();
+    salads.forEach(salad => {
+      if (salad.liters.length > 0) {
+        const sig = getLiterSignature(salad.liters);
+        if (sig) {
+          signatureCounts.set(sig, (signatureCounts.get(sig) || 0) + 1);
+        }
+      }
+    });
+
+    // Mark salads with common signatures (appearing more than once) as isBulkApplied
+    salads.forEach(salad => {
+      if (salad.liters.length > 0) {
+        const sig = getLiterSignature(salad.liters);
+        if (sig && (signatureCounts.get(sig) || 0) > 1) {
+          salad.isBulkApplied = true;
+        }
+      }
+    });
 
     // Calculate total price of extra items
     const extraItemsPrice = order.extra_items?.reduce((sum, item) => sum + item.price, 0) || 0;
@@ -467,9 +626,21 @@ export default function SummaryPage() {
 
   // Handle printing a specific order
   const handlePrintOrder = (order: OrderWithDetails) => {
+    // Save filters and navigation source before navigating
+    saveFiltersToSession();
+    sessionStorage.setItem("navigationSource", "summary");
+    
     const printData = transformOrderToPrintData(order);
     sessionStorage.setItem("printOrderData", JSON.stringify(printData));
     router.push("/print-preview");
+  };
+
+  // Handle editing a specific order
+  const handleEditOrder = (orderId: string) => {
+    // Save filters and navigation source before navigating
+    saveFiltersToSession();
+    sessionStorage.setItem("navigationSource", "summary");
+    router.push(`/edit-order/${orderId}`);
   };
 
   if (dataLoading) {
@@ -904,7 +1075,7 @@ export default function SummaryPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/edit-order/${order.id}`);
+                          handleEditOrder(order.id);
                         }}
                         className="flex-1 h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
                       >

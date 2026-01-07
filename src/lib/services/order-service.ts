@@ -371,6 +371,7 @@ export interface OrderWithDetails {
   updated_at: string;
   customer: Customer | null;
   items: (OrderItem & {
+    add_on_id?: string | null;
     food_item?: {
       id: string;
       name: string;
@@ -385,6 +386,11 @@ export interface OrderWithDetails {
     preparation?: {
       id: string;
       name: string;
+    };
+    add_on?: {
+      id: string;
+      name: string;
+      measurement_type: string;
     };
   })[];
   extra_items?: {
@@ -471,7 +477,8 @@ export async function getOrdersByDateRange(
       *,
       food_item:food_items(id, name, category_id, has_liters),
       liter_size:liter_sizes(id, label, size),
-      preparation:food_item_preparations(id, name)
+      preparation:food_item_preparations(id, name),
+      add_on:food_item_add_ons(id, name, measurement_type)
     `)
     .in("order_id", orderIds);
 

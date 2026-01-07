@@ -785,6 +785,112 @@ export function OrderForm() {
     }));
   };
 
+  // Cancel handlers for non-salad categories - reset item to initial state
+  const handleCancelMiddleCourse = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      middle_courses: prev.middle_courses.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, preparation_id: undefined, preparation_name: undefined, note: undefined }
+          : item
+      ),
+    }));
+    // Also remove any extra items for this food item
+    setFormState((prev) => ({
+      ...prev,
+      extra_items: prev.extra_items.filter(e => e.source_food_item_id !== foodItemId),
+    }));
+  };
+
+  const handleCancelSide = (foodItemId: string) => {
+    const sideItem = sideItems.find(s => s.id === foodItemId);
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? {
+              ...item,
+              selected: false,
+              size_big: 0,
+              size_small: 0,
+              preparation_id: undefined,
+              preparation_name: undefined,
+              note: undefined,
+              variations: (sideItem?.variations || []).map((v) => ({
+                variation_id: v.id,
+                size_big: 0,
+                size_small: 0,
+              })),
+            }
+          : item
+      ),
+    }));
+    // Also remove any extra items for this food item
+    setFormState((prev) => ({
+      ...prev,
+      extra_items: prev.extra_items.filter(e => e.source_food_item_id !== foodItemId),
+    }));
+  };
+
+  const handleCancelMain = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      mains: prev.mains.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, preparation_id: undefined, preparation_name: undefined, note: undefined }
+          : item
+      ),
+    }));
+    // Also remove any extra items for this food item
+    setFormState((prev) => ({
+      ...prev,
+      extra_items: prev.extra_items.filter(e => e.source_food_item_id !== foodItemId),
+    }));
+  };
+
+  const handleCancelExtra = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId
+          ? {
+              ...item,
+              selected: false,
+              quantity: 0,
+              liters: item.liters.map((l) => ({ ...l, quantity: 0 })),
+              size_big: 0,
+              size_small: 0,
+              preparation_id: undefined,
+              preparation_name: undefined,
+              note: undefined,
+              price: undefined,
+            }
+          : item
+      ),
+    }));
+  };
+
+  const handleCancelBakery = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) =>
+        item.food_item_id === foodItemId
+          ? {
+              ...item,
+              selected: false,
+              quantity: 0,
+              liters: item.liters.map((l) => ({ ...l, quantity: 0 })),
+              size_big: 0,
+              size_small: 0,
+              preparation_id: undefined,
+              preparation_name: undefined,
+              note: undefined,
+            }
+          : item
+      ),
+    }));
+  };
+
   // Extras category handlers - supports all measurement types
   const handleExtrasToggle = (foodItemId: string, checked: boolean) => {
     setFormState((prev) => ({
@@ -1269,6 +1375,9 @@ export function OrderForm() {
 
     // Save form state for restoration when returning from print preview
     sessionStorage.setItem("orderFormState", JSON.stringify(formState));
+
+    // Set navigation source so back button returns to order page
+    sessionStorage.setItem("navigationSource", "order");
 
     // Navigate to print preview
     router.push("/print-preview");
@@ -2094,6 +2203,7 @@ const dayName = getHebrewDay(formState.order_date);
                       handleRegularNoteChange("middle_courses", expandedMiddleId, note)
                     }
                     onClose={() => setExpandedMiddleId(null)}
+                    onCancel={() => handleCancelMiddleCourse(expandedMiddleId)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
                       handleAddAsExtra(
@@ -2202,6 +2312,7 @@ const dayName = getHebrewDay(formState.order_date);
                       handleSidesVariationSizeChange(expandedSideId, variationId, size, qty)
                     }
                     onClose={() => setExpandedSideId(null)}
+                    onCancel={() => handleCancelSide(expandedSideId)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
                       handleAddAsExtra(
@@ -2294,6 +2405,7 @@ const dayName = getHebrewDay(formState.order_date);
                       handleNoteChange("mains", expandedMainId, note)
                     }
                     onClose={() => setExpandedMainId(null)}
+                    onCancel={() => handleCancelMain(expandedMainId)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
                       handleAddAsExtra(
@@ -2585,6 +2697,18 @@ const dayName = getHebrewDay(formState.order_date);
                                 />
                               </div>
 
+                              {/* Cancel button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleCancelExtra(expandedExtraId);
+                                  setExpandedExtraId(null);
+                                }}
+                                className="w-full h-10 mb-4 bg-gray-100 text-gray-600 font-semibold rounded-xl border-2 border-gray-300 hover:bg-gray-200 active:scale-[0.98] transition-all"
+                              >
+                                ביטול
+                              </button>
+
                               {/* Done button */}
                               <button
                                 type="button"
@@ -2623,6 +2747,7 @@ const dayName = getHebrewDay(formState.order_date);
                           handleNoteChange("extras", expandedExtraId, note)
                         }
                         onClose={() => setExpandedExtraId(null)}
+                        onCancel={() => handleCancelExtra(expandedExtraId)}
                         price={expandedState?.price}
                         onPriceChange={(newPrice) =>
                           handleExtrasPriceChange(expandedExtraId, newPrice)
@@ -2817,6 +2942,18 @@ const dayName = getHebrewDay(formState.order_date);
                                   dir="rtl"
                                 />
                               </div>
+
+                              {/* Cancel button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleCancelBakery(expandedBakeryId);
+                                  setExpandedBakeryId(null);
+                                }}
+                                className="w-full h-10 mb-4 bg-gray-100 text-gray-600 font-semibold rounded-xl border-2 border-gray-300 hover:bg-gray-200 active:scale-[0.98] transition-all"
+                              >
+                                ביטול
+                              </button>
                               
                               {/* Done button */}
                               <button
@@ -2856,6 +2993,7 @@ const dayName = getHebrewDay(formState.order_date);
                           handleRegularNoteChange("bakery", expandedBakeryId, note)
                         }
                         onClose={() => setExpandedBakeryId(null)}
+                        onCancel={() => handleCancelBakery(expandedBakeryId)}
                       />
                     );
                   })()}

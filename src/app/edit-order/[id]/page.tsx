@@ -796,6 +796,101 @@ export default function EditOrderPage() {
     }));
   };
 
+  // Cancel handlers - reset item selection and quantities
+  const handleCancelSalad = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      salads: prev.salads.map((s) =>
+        s.food_item_id === foodItemId
+          ? {
+              ...s,
+              selected: false,
+              liters: s.liters.map((l) => ({ ...l, quantity: 0 })),
+              size_big: 0,
+              size_small: 0,
+              regular_quantity: 0,
+              addOns: s.addOns.map((ao) => ({
+                ...ao,
+                quantity: 0,
+                liters: ao.liters.map((l) => ({ ...l, quantity: 0 })),
+              })),
+              note: "",
+            }
+          : s
+      ),
+    }));
+    setExpandedSaladId(null);
+  };
+
+  const handleCancelMiddleCourse = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      middle_courses: prev.middle_courses.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, preparation_id: undefined, preparation_name: undefined, note: "" }
+          : item
+      ),
+    }));
+    setExpandedMiddleId(null);
+  };
+
+  const handleCancelSide = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? {
+              ...item,
+              selected: false,
+              size_big: 0,
+              size_small: 0,
+              variations: item.variations?.map((v) => ({ ...v, size_big: 0, size_small: 0 })),
+              preparation_id: undefined,
+              preparation_name: undefined,
+              note: "",
+            }
+          : item
+      ),
+    }));
+    setExpandedSideId(null);
+  };
+
+  const handleCancelMain = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      mains: prev.mains.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, preparation_id: undefined, preparation_name: undefined, note: "" }
+          : item
+      ),
+    }));
+    setExpandedMainId(null);
+  };
+
+  const handleCancelExtra = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      extras: prev.extras.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, size_big: 0, size_small: 0, preparation_id: undefined, preparation_name: undefined, note: "", price: 0 }
+          : item
+      ),
+    }));
+    setExpandedExtraId(null);
+  };
+
+  const handleCancelBakery = (foodItemId: string) => {
+    setFormState((prev) => ({
+      ...prev,
+      bakery: prev.bakery.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, selected: false, quantity: 0, size_big: 0, size_small: 0, preparation_id: undefined, preparation_name: undefined, note: "" }
+          : item
+      ),
+    }));
+    setExpandedBakeryId(null);
+  };
+
   // Extra item handlers - for adding items as extras with custom prices
   // Items are added ONLY to extra_items[], original category stays unchanged
   // If item already exists in extra_items, merge quantities
@@ -1173,7 +1268,13 @@ export default function EditOrderPage() {
 
       if (result.success) {
         alert("ההזמנה עודכנה בהצלחה!");
-        router.push("/summary");
+        // Navigate back to source page (summary or order)
+        const source = sessionStorage.getItem("navigationSource");
+        if (source === "summary") {
+          router.push("/summary");
+        } else {
+          router.push("/order");
+        }
       } else {
         setSaveError(result.error || "שגיאה בשמירת ההזמנה");
         alert(`שגיאה: ${result.error}`);
@@ -1187,6 +1288,16 @@ export default function EditOrderPage() {
     }
   };
 
+  // Handle back navigation based on where user came from
+  const handleBack = () => {
+    const source = sessionStorage.getItem("navigationSource");
+    if (source === "summary") {
+      router.push("/summary");
+    } else {
+      router.push("/order");
+    }
+  };
+
   return (
     <AuthGuard>
     <div className="min-h-screen bg-gray-50">
@@ -1194,7 +1305,7 @@ export default function EditOrderPage() {
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
           <button 
-            onClick={() => router.push("/summary")}
+            onClick={handleBack}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowRight className="h-5 w-5" />
@@ -1407,6 +1518,7 @@ export default function EditOrderPage() {
                     onAddOnLiterChange={(addonId, literId, qty) => handleAddOnLiterChange(expandedSaladId, addonId, literId, qty)}
                     onAddOnQuantityChange={(addonId, qty) => handleAddOnQuantityChange(expandedSaladId, addonId, qty)}
                     onNoteChange={(note) => handleSaladNoteChange(expandedSaladId, note)}
+                    onCancel={() => handleCancelSalad(expandedSaladId)}
                     onClose={() => setExpandedSaladId(null)}
                     onMergeAddOnToLinkedItem={handleMergeAddOnToLinkedItem}
                     allSaladItems={saladItems}
@@ -1468,6 +1580,7 @@ export default function EditOrderPage() {
                     onQuantityChange={(qty) => handleRegularQuantityChange("middle_courses", expandedMiddleId, qty)}
                     onPreparationChange={(prepId, prepName) => handlePreparationChange("middle_courses", expandedMiddleId, prepId, prepName)}
                     onNoteChange={(note) => handleRegularNoteChange("middle_courses", expandedMiddleId, note)}
+                    onCancel={() => handleCancelMiddleCourse(expandedMiddleId)}
                     onClose={() => setExpandedMiddleId(null)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
@@ -1549,6 +1662,7 @@ export default function EditOrderPage() {
                     onPreparationChange={(prepId, prepName) => handleSidesPreparationChange(expandedSideId, prepId, prepName)}
                     onNoteChange={(note) => handleSidesNoteChange(expandedSideId, note)}
                     onVariationSizeChange={(variationId, size, qty) => handleSidesVariationSizeChange(expandedSideId, variationId, size, qty)}
+                    onCancel={() => handleCancelSide(expandedSideId)}
                     onClose={() => setExpandedSideId(null)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
@@ -1620,6 +1734,7 @@ export default function EditOrderPage() {
                     onQuantityChange={(qty) => handleRegularQuantityChange("mains", expandedMainId, qty)}
                     onPreparationChange={(prepId, prepName) => handlePreparationChange("mains", expandedMainId, prepId, prepName)}
                     onNoteChange={(note) => handleRegularNoteChange("mains", expandedMainId, note)}
+                    onCancel={() => handleCancelMain(expandedMainId)}
                     onClose={() => setExpandedMainId(null)}
                     showExtraButton={true}
                     onAddAsExtra={(price, quantityData) => {
@@ -1922,6 +2037,7 @@ export default function EditOrderPage() {
                         onNoteChange={(note) => handleExtrasNoteChange(expandedExtraId, note)}
                         onPriceChange={(price) => handleExtrasPriceChange(expandedExtraId, price)}
                         showPriceInput={true}
+                        onCancel={() => handleCancelExtra(expandedExtraId)}
                         onClose={() => setExpandedExtraId(null)}
                       />
                     );
@@ -2122,6 +2238,7 @@ export default function EditOrderPage() {
                         onSizeChange={useSizeMode ? (size, qty) => handleBakerySizeChange(expandedBakeryId, size, qty) : undefined}
                         onPreparationChange={(prepId, prepName) => handlePreparationChange("bakery", expandedBakeryId, prepId, prepName)}
                         onNoteChange={(note) => handleBakeryNoteChange(expandedBakeryId, note)}
+                        onCancel={() => handleCancelBakery(expandedBakeryId)}
                         onClose={() => setExpandedBakeryId(null)}
                       />
                     );

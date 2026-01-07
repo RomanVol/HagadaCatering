@@ -571,6 +571,16 @@ export default function PrintPreviewPage() {
     return date.toLocaleDateString("he-IL");
   };
 
+  // Handle back navigation based on where user came from
+  const handleBack = () => {
+    const source = sessionStorage.getItem("navigationSource");
+    if (source === "summary") {
+      router.push("/summary");
+    } else {
+      router.push("/order");
+    }
+  };
+
   return (
     <AuthGuard>
       <PrintOrderPage
@@ -592,7 +602,7 @@ export default function PrintPreviewPage() {
         categories={categories}
         aggregatedLiters={commonSignatureDisplay}
         aggregatedLitersTotal={parseFloat(totalCommonLiters.toFixed(2))}
-        onBack={() => router.push("/")}
+        onBack={handleBack}
       />
     </AuthGuard>
   );

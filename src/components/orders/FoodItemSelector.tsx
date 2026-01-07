@@ -278,6 +278,8 @@ interface FoodItemPopupProps {
   onNoteChange?: (note: string) => void;
   onVariationSizeChange?: (variationId: string, size: "big" | "small", quantity: number) => void;
   onClose: () => void;
+  // Cancel/reset handler - resets all item values
+  onCancel?: () => void;
   // Extra item props
   showExtraButton?: boolean;
   onAddAsExtra?: (price: number, quantityData: {
@@ -306,6 +308,7 @@ export function FoodItemPopup({
   onNoteChange,
   onVariationSizeChange,
   onClose,
+  onCancel,
   showExtraButton,
   onAddAsExtra,
   price,
@@ -693,6 +696,20 @@ export function FoodItemPopup({
                 dir="ltr"
               />
             </div>
+          )}
+
+          {/* Cancel button - resets all item values */}
+          {onCancel && !isExtraMode && (
+            <button
+              type="button"
+              onClick={() => {
+                onCancel();
+                onClose();
+              }}
+              className="w-full h-10 mb-4 bg-gray-100 text-gray-600 font-semibold rounded-xl border-2 border-gray-300 hover:bg-gray-200 active:scale-[0.98] transition-all"
+            >
+              ביטול
+            </button>
           )}
 
           {/* Done button - changes style in extra mode */}
