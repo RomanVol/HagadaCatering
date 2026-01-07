@@ -4,7 +4,7 @@ SET session_replication_role = replica;
 -- PostgreSQL database dump
 --
 
--- \restrict WwA9zzn5iEOIZb6mqB6TtSYCSPG92R93tp8pufIcNx8mTnJqzUNkgeiWpM10ZWk
+-- \restrict BAwExW16Ldtb5o7z5ygQh44RvR5QkJ3uQWTfiK6m82TnLsZwZuIZLdTqPxftPgE
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -21,9 +21,7 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
-
--- Public schema data only (auth schema excluded for security)
-
+--
 -- Data for Name: categories; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -1095,5 +1093,16 @@ INSERT INTO "public"."order_items" ("id", "order_id", "food_item_id", "liter_siz
 
 
 --
+-- Name: orders_order_number_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
-SET session_replication_role = DEFAULT;
+SELECT pg_catalog.setval('"public"."orders_order_number_seq"', 124, true);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+-- \unrestrict BAwExW16Ldtb5o7z5ygQh44RvR5QkJ3uQWTfiK6m82TnLsZwZuIZLdTqPxftPgE
+
+RESET ALL;

@@ -12,7 +12,20 @@ function isPublicPath(pathname: string) {
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
+
+  // Handle OAuth callback at root level (Supabase redirects here with ?code=)
+  const code = searchParams.get("code");
+  console.log("[MIDDLEWARE] Path:", pathname, "Code:", code ? "present" : "none");
+
+  if (code) {
+    console.log("[MIDDLEWARE] Redirecting to callback handler");
+    // Redirect to our callback handler
+    const callbackUrl = new URL("/api/auth/callback", request.url);
+    callbackUrl.searchParams.set("code", code);
+    callbackUrl.searchParams.set("redirect", "/order");
+    return NextResponse.redirect(callbackUrl);
+  }
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();
@@ -35,6 +48,39 @@ export async function middleware(request: NextRequest) {
     const redirectUrl = new URL("/login", request.url);
     redirectUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Check if user's email is in allowed_emails table
+  console.log("[MIDDLEWARE] User found:", user.email);
+
+  if (user.email) {
+    const { data: allowedEmail, error: queryError } = await supabase
+      .from("allowed_emails")
+      .select("email")
+      .ilike("email", user.email)
+      .single();
+
+    console.log("[MIDDLEWARE] Allowed check:", { allowedEmail, queryError });
+
+    if (!allowedEmail) {
+      // User not authorized - sign them out and redirect to login
+      await supabase.auth.signOut();
+      const redirectUrl = new URL("/login", request.url);
+      redirectUrl.searchParams.set("error", "אימייל לא מורשה. אנא פנה למנהל המערכת.");
+      const redirectResponse = NextResponse.redirect(redirectUrl);
+
+      // Clear all Supabase auth cookies
+      request.cookies.getAll().forEach((cookie) => {
+        if (cookie.name.startsWith('sb-')) {
+          redirectResponse.cookies.set(cookie.name, '', {
+            path: '/',
+            maxAge: 0,
+          });
+        }
+      });
+
+      return redirectResponse;
+    }
   }
 
   return response;

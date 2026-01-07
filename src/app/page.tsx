@@ -12,9 +12,24 @@ export default function Home() {
 
       if (!user) {
         window.location.href = "/login";
-      } else {
-        window.location.href = "/order";
+        return;
       }
+
+      // Check if user's email is in allowed_emails table
+      const { data: allowedEmail } = await supabase
+        .from("allowed_emails")
+        .select("email")
+        .ilike("email", user.email || "")
+        .single();
+
+      if (!allowedEmail) {
+        // User not authorized - sign them out
+        await supabase.auth.signOut();
+        window.location.href = "/login?error=" + encodeURIComponent("אימייל לא מורשה. אנא פנה למנהל המערכת.");
+        return;
+      }
+
+      window.location.href = "/order";
     };
 
     checkAuthAndRedirect();
