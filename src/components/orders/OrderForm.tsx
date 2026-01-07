@@ -1823,30 +1823,36 @@ const dayName = getHebrewDay(formState.order_date);
                   )}
                 </div>
 
-                {/* Time fields - side by side, equal width */}
-                <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                  <Input
-                    label="זמן ללקוח"
-                    type="time"
-                    value={formState.customer_time || ""}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        customer_time: e.target.value,
-                      }))
-                    }
-                  />
-                  <Input
-                    label="זמן למטבח"
-                    type="time"
-                    value={formState.order_time}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        order_time: e.target.value,
-                      }))
-                    }
-                  />
+                {/* Time fields - exactly 50% each on mobile */}
+                <div className="flex gap-2 sm:gap-3 w-full">
+                  <div className="flex-1 min-w-0">
+                    <Input
+                      label="זמן ללקוח"
+                      type="time"
+                      value={formState.customer_time || ""}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          customer_time: e.target.value,
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <Input
+                      label="זמן למטבח"
+                      type="time"
+                      value={formState.order_time}
+                      onChange={(e) =>
+                        setFormState((prev) => ({
+                          ...prev,
+                          order_time: e.target.value,
+                        }))
+                      }
+                      className="w-full"
+                    />
+                  </div>
                 </div>
                 <Input
                   label={LABELS.orderForm.address}
