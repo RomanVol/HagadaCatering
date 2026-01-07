@@ -146,6 +146,24 @@ input[type="radio"] {
   }
 }
 
+/* Extra small breakpoint utilities (xs: 480px+) */
+@media (min-width: 480px) {
+  .xs\:inline {
+    display: inline !important;
+  }
+}
+
+/* Safe area for iPhone notch/home indicator */
+.safe-area-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  }
+}
+
 /* Remove input spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

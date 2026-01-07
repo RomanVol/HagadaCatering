@@ -1733,17 +1733,17 @@ const getHebrewDay = (dateString: string): string => {
 const dayName = getHebrewDay(formState.order_date);
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
+      {/* Header - Mobile optimized */}
+      <header className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-200 px-3 sm:px-4 py-2.5 sm:py-3">
         <div className="flex items-center justify-between max-w-2xl mx-auto">
-          <div className="w-20" />
-          <h1 className="text-xl font-bold">{LABELS.orderForm.newOrder}</h1>
-          <div className="w-20" /> {/* Spacer for alignment */}
+          <div className="w-16 sm:w-20" />
+          <h1 className="text-lg sm:text-xl font-bold">{LABELS.orderForm.newOrder}</h1>
+          <div className="w-16 sm:w-20" /> {/* Spacer for alignment */}
         </div>
       </header>
 
-      {/* Form Content */}
-      <main className="max-w-2xl mx-auto p-4 space-y-4 pb-32">
+      {/* Form Content - Mobile optimized */}
+      <main className="max-w-2xl mx-auto px-3 sm:p-4 py-3 sm:py-4 space-y-3 sm:space-y-4 pb-28 sm:pb-32">
         {/* Customer Details - Expandable */}
         <Accordion
           type="multiple"
@@ -1751,13 +1751,13 @@ const dayName = getHebrewDay(formState.order_date);
           className="space-y-2"
         >
           <AccordionItem value="customer-details" className="bg-white rounded-xl border border-gray-200">
-            <AccordionTrigger className="px-4 hover:no-underline">
-              <div className="flex items-center justify-between w-full pl-4">
-                <span className="text-lg font-semibold">
+            <AccordionTrigger className="px-3 sm:px-4 hover:no-underline">
+              <div className="flex items-center justify-between w-full pl-2 sm:pl-4">
+                <span className="text-base sm:text-lg font-semibold">
                   {LABELS.orderForm.customerDetails}
                 </span>
                 {(formState.customer_name || customerPhones) && (
-                  <span className="text-sm text-gray-600 font-normal truncate max-w-[200px]">
+                  <span className="text-xs sm:text-sm text-gray-600 font-normal truncate max-w-[120px] sm:max-w-[200px]">
                     {formState.customer_name}
                     {formState.customer_name && customerPhones ? " • " : ""}
                     {customerPhones}
@@ -1765,20 +1765,23 @@ const dayName = getHebrewDay(formState.order_date);
                 )}
               </div>
             </AccordionTrigger>
-            <AccordionContent className="px-4">
+            <AccordionContent className="px-3 sm:px-4">
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label={LABELS.orderForm.customerName}
-                    value={formState.customer_name}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        customer_name: e.target.value,
-                      }))
-                    }
-                    placeholder="שם הלקוח"
-                  />
+                {/* Customer Name - Full width on mobile for better input */}
+                <Input
+                  label={LABELS.orderForm.customerName}
+                  value={formState.customer_name}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      customer_name: e.target.value,
+                    }))
+                  }
+                  placeholder="שם הלקוח"
+                />
+
+                {/* Phone numbers - side by side */}
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
                   <Input
                     label={LABELS.orderForm.phone}
                     type="tel"
@@ -1788,8 +1791,6 @@ const dayName = getHebrewDay(formState.order_date);
                     }
                     placeholder="050-0000000"
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
                   <Input
                     label="טלפון נוסף"
                     type="tel"
@@ -1797,49 +1798,11 @@ const dayName = getHebrewDay(formState.order_date);
                     onChange={(e) =>
                       setFormState((prev) => ({ ...prev, phone_alt: e.target.value }))
                     }
-                    placeholder="טלפון נוסף (אופציונלי)"
+                    placeholder="אופציונלי"
                   />
-                        {/* 👇 NEW FIELD: Customer Time (זמן ללקוח) */}
-                  <Input
-                    label="זמן ללקוח"
-                    type="time"
-                    value={formState.customer_time || ""} 
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        customer_time: e.target.value,
-                      }))
-                    }
-                  />
-                {/* </div> */}
                 </div>
-                {/* <div className="grid grid-cols-2 gap-3"> */}
-                  {/* <Input
-                    label={LABELS.orderForm.date}
-                    type="date"
-                    value={formState.order_date}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        order_date: e.target.value,
-                      }))
-                    }
-                  />
-                  <Input
-                    label={LABELS.orderForm.time}
-                    type="time"
-                    value={formState.order_time}
-                    onChange={(e) =>
-                      setFormState((prev) => ({
-                        ...prev,
-                        order_time: e.target.value,
-                      }))
-                    }
-                  />
-                </div> */}
-                <div className="grid grid-cols-2 gap-3">
-                
-                {/* WRAPPER: Needs 'relative' so we can position the text inside */}
+
+                {/* Date field - full width with day name */}
                 <div className="relative w-full">
                   <Input
                     label={LABELS.orderForm.date}
@@ -1851,37 +1814,40 @@ const dayName = getHebrewDay(formState.order_date);
                         order_date: e.target.value,
                       }))
                     }
-                    // IMPORTANT: Add padding to the left so the text doesn't cover the date numbers.
-                    // If your app is LTR, change this to paddingRight.
-                    // Using 'style' ensures it overrides internal CSS if Tailwind classes aren't passed through.
-                    style={{ paddingLeft: "80px" }} 
+                    className="pl-16 sm:pl-20"
                   />
-
-                  {/* THE HEBREW DAY TEXT */}
                   {dayName && (
-                    <span 
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none"
-                      // In case the label pushes the input down, you might need to adjust 'top' slightly
-                      // pointer-events-none ensures clicks go through the text to the input
-                    >
+                    <span className="absolute left-2 sm:left-3 bottom-2.5 sm:bottom-3 text-xs sm:text-sm text-blue-600 font-medium pointer-events-none">
                       {dayName}
                     </span>
                   )}
                 </div>
 
-                {/* Time Input (Unchanged) */}
-                <Input
-                  label="זמן למטבח"
-                  type="time"
-                  value={formState.order_time}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      order_time: e.target.value,
-                    }))
-                  }
-                />
-              </div>
+                {/* Time fields - side by side, equal width */}
+                <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                  <Input
+                    label="זמן ללקוח"
+                    type="time"
+                    value={formState.customer_time || ""}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        customer_time: e.target.value,
+                      }))
+                    }
+                  />
+                  <Input
+                    label="זמן למטבח"
+                    type="time"
+                    value={formState.order_time}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        order_time: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
                 <Input
                   label={LABELS.orderForm.address}
                   value={formState.address}
@@ -1902,7 +1868,7 @@ const dayName = getHebrewDay(formState.order_date);
                 {/* Pricing Section */}
                 <div className="pt-3 border-t border-gray-200">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">תמחור</h4>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     <Input
                       label="סה״כ מנות"
                       type="number"
@@ -1917,7 +1883,7 @@ const dayName = getHebrewDay(formState.order_date);
                       placeholder="0"
                     />
                     <Input
-                      label="מחיר בסיס למנה"
+                      label="מחיר למנה"
                       type="number"
                       min="0"
                       value={formState.price_per_portion || ""}
@@ -1930,7 +1896,7 @@ const dayName = getHebrewDay(formState.order_date);
                       placeholder="₪0"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2 sm:mt-3">
                     <Input
                       label="הובלה"
                       type="number"
@@ -1945,8 +1911,8 @@ const dayName = getHebrewDay(formState.order_date);
                       placeholder="₪0"
                     />
                     <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700">סה״כ לתשלום</label>
-                      <div className="h-12 px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
+                      <label className="text-xs sm:text-sm font-medium text-gray-700">סה״כ לתשלום</label>
+                      <div className="h-11 sm:h-12 px-3 sm:px-4 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center">
                         <span className="text-lg font-bold text-green-600">
                           ₪{((formState.total_portions * formState.price_per_portion) + formState.delivery_fee + totalExtraPrice).toLocaleString()}
                         </span>
@@ -3012,42 +2978,42 @@ const dayName = getHebrewDay(formState.order_date);
         </Accordion>
       </main>
 
-      {/* Fixed Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
-        <div className="max-w-2xl mx-auto flex gap-3">
-          <Button 
-            variant="secondary" 
-            className="gap-2"
+      {/* Fixed Bottom Action Bar - Mobile optimized */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 p-3 sm:p-4 safe-area-bottom">
+        <div className="max-w-2xl mx-auto flex gap-2 sm:gap-3">
+          <Button
+            variant="secondary"
+            className="gap-1.5 sm:gap-2 px-3 sm:px-4 text-sm"
             disabled={isSaving}
             onClick={handleResetForm}
           >
-            <RotateCcw className="h-5 w-5" />
-            הזמנה חדשה
+            <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden xs:inline">חדש</span>
           </Button>
-          <Button 
-            onClick={handleSave} 
-            className="flex-1 gap-2"
+          <Button
+            onClick={handleSave}
+            className="flex-1 gap-1.5 sm:gap-2 text-sm"
             disabled={isSaving}
           >
             {isSaving ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
             ) : (
-              <Save className="h-5 w-5" />
+              <Save className="h-4 w-4 sm:h-5 sm:w-5" />
             )}
             {isSaving ? "שומר..." : LABELS.actions.save}
           </Button>
-          <Button 
-            variant="secondary" 
-            className="gap-2" 
+          <Button
+            variant="secondary"
+            className="gap-1.5 sm:gap-2 px-3 sm:px-4 text-sm"
             disabled={isSaving}
             onClick={handlePrint}
           >
-            <Printer className="h-5 w-5" />
-            {LABELS.actions.print}
+            <Printer className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden xs:inline">{LABELS.actions.print}</span>
           </Button>
         </div>
         {saveError && (
-          <p className="text-red-500 text-sm text-center mt-2">{saveError}</p>
+          <p className="text-red-500 text-xs sm:text-sm text-center mt-2">{saveError}</p>
         )}
       </div>
     </div>
