@@ -1,19 +1,37 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(request: NextRequest) {
   try {
     const origin = request.nextUrl.origin;
-    const redirect = request.nextUrl.searchParams.get("redirect") ?? "/order";
 
-    // Create a temporary response to collect cookies
-    const tempResponse = NextResponse.next();
-    const supabase = createServerSupabaseClient(request, tempResponse);
+    const cookieStore = await cookies();
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Ignore errors in Server Components
+          }
+        },
+      },
+    });
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/api/auth/callback?redirect=${encodeURIComponent(redirect)}`,
+        redirectTo: `${origin}/api/auth/callback`,
       },
     });
 
@@ -22,22 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/login?error=${msg}`);
     }
 
-    // Create redirect response and copy cookies from temp response
-    const redirectResponse = NextResponse.redirect(data.url);
-
-    // Copy all cookies (including PKCE code_verifier) to the redirect response
-    tempResponse.cookies.getAll().forEach((cookie) => {
-      redirectResponse.cookies.set(cookie.name, cookie.value, {
-        path: cookie.path,
-        domain: cookie.domain,
-        secure: cookie.secure,
-        httpOnly: cookie.httpOnly,
-        sameSite: cookie.sameSite as "lax" | "strict" | "none" | undefined,
-        maxAge: cookie.maxAge,
-      });
-    });
-
-    return redirectResponse;
+    return NextResponse.redirect(data.url);
   } catch (error) {
     console.error("OAuth login error:", error);
     return NextResponse.json(
