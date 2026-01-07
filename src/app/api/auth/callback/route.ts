@@ -1,5 +1,9 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(request: NextRequest) {
   const requestUrl = request.nextUrl;
@@ -12,12 +16,30 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Create a temporary response to exchange the code
-  const tempResponse = NextResponse.next();
-  const supabase = createServerSupabaseClient(request, tempResponse);
+  const cookieStore = await cookies();
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // The `setAll` method was called from a Server Component.
+          // This can be ignored if you have middleware refreshing sessions.
+        }
+      },
+    },
+  });
+
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
+    console.error("[CALLBACK] Exchange error:", error.message);
     return NextResponse.redirect(
       `${requestUrl.origin}/login?error=${encodeURIComponent(error.message)}`
     );
@@ -26,7 +48,7 @@ export async function GET(request: NextRequest) {
   // Check if user's email is in the allowed_emails table
   const { data: { user } } = await supabase.auth.getUser();
 
-  console.log("Checking user email:", user?.email);
+  console.log("[CALLBACK] User email:", user?.email);
 
   if (user?.email) {
     const { data: allowedEmail, error: allowedError } = await supabase
@@ -35,60 +57,17 @@ export async function GET(request: NextRequest) {
       .ilike("email", user.email)
       .single();
 
-    console.log("Allowed email check:", { allowedEmail, allowedError });
+    console.log("[CALLBACK] Allowed check:", { allowedEmail, allowedError });
 
     if (!allowedEmail) {
-      // User not authorized - sign them out and clear ALL auth cookies
+      // User not authorized - sign them out
       await supabase.auth.signOut();
-
-      const errorResponse = NextResponse.redirect(
+      return NextResponse.redirect(
         `${requestUrl.origin}/login?error=${encodeURIComponent("אימייל לא מורשה. אנא פנה למנהל המערכת.")}`
       );
-
-      // Explicitly delete all Supabase auth cookies
-      const cookiesToClear = [
-        'sb-access-token',
-        'sb-refresh-token',
-        'sb-auth-token',
-        'sb-127-auth-token',
-        'sb-127-auth-token.0',
-        'sb-127-auth-token.1',
-      ];
-
-      // Also clear any cookies that start with 'sb-'
-      request.cookies.getAll().forEach((cookie) => {
-        if (cookie.name.startsWith('sb-')) {
-          errorResponse.cookies.set(cookie.name, '', {
-            path: '/',
-            maxAge: 0,
-          });
-        }
-      });
-
-      cookiesToClear.forEach((name) => {
-        errorResponse.cookies.set(name, '', {
-          path: '/',
-          maxAge: 0,
-        });
-      });
-
-      return errorResponse;
     }
   }
 
-  // User is authorized - create success redirect with session cookies
-  const successResponse = NextResponse.redirect(`${requestUrl.origin}${redirect}`);
-
-  tempResponse.cookies.getAll().forEach((cookie) => {
-    successResponse.cookies.set(cookie.name, cookie.value, {
-      path: cookie.path,
-      domain: cookie.domain,
-      secure: cookie.secure,
-      httpOnly: cookie.httpOnly,
-      sameSite: cookie.sameSite as "lax" | "strict" | "none" | undefined,
-      maxAge: cookie.maxAge,
-    });
-  });
-
-  return successResponse;
+  // User is authorized - redirect to requested page
+  return NextResponse.redirect(`${requestUrl.origin}${redirect}`);
 }

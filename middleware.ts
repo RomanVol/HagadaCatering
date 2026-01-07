@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 const PUBLIC_PATHS = ["/login", "/favicon.ico"];
 
@@ -16,10 +19,8 @@ export async function middleware(request: NextRequest) {
 
   // Handle OAuth callback at root level (Supabase redirects here with ?code=)
   const code = searchParams.get("code");
-  console.log("[MIDDLEWARE] Path:", pathname, "Code:", code ? "present" : "none");
 
   if (code) {
-    console.log("[MIDDLEWARE] Redirecting to callback handler");
     // Redirect to our callback handler
     const callbackUrl = new URL("/api/auth/callback", request.url);
     callbackUrl.searchParams.set("code", code);
@@ -31,14 +32,37 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const response = NextResponse.next();
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
 
   // Prevent caching of protected pages
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   response.headers.set("Pragma", "no-cache");
   response.headers.set("Expires", "0");
 
-  const supabase = createServerSupabaseClient(request, response);
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) =>
+          request.cookies.set(name, value)
+        );
+        response = NextResponse.next({
+          request: {
+            headers: request.headers,
+          },
+        });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
 
   const {
     data: { user },
@@ -51,16 +75,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check if user's email is in allowed_emails table
-  console.log("[MIDDLEWARE] User found:", user.email);
-
   if (user.email) {
-    const { data: allowedEmail, error: queryError } = await supabase
+    const { data: allowedEmail } = await supabase
       .from("allowed_emails")
       .select("email")
       .ilike("email", user.email)
       .single();
-
-    console.log("[MIDDLEWARE] Allowed check:", { allowedEmail, queryError });
 
     if (!allowedEmail) {
       // User not authorized - sign them out and redirect to login
