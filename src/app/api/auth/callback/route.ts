@@ -1,6 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -8,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export async function GET(request: NextRequest) {
   const requestUrl = request.nextUrl;
   const code = requestUrl.searchParams.get("code");
-  const redirect = requestUrl.searchParams.get("redirect") ?? "/order";
+  const redirectPath = requestUrl.searchParams.get("redirect") ?? "/order";
 
   if (!code) {
     return NextResponse.redirect(
@@ -16,22 +15,19 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cookieStore = await cookies();
+  // Create the response first - cookies will be set on this response
+  const redirectUrl = `${requestUrl.origin}${redirectPath}`;
+  const response = NextResponse.redirect(redirectUrl);
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll() {
-        return cookieStore.getAll();
+        return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // The `setAll` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing sessions.
-        }
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options as CookieOptions);
+        });
       },
     },
   });
@@ -46,28 +42,36 @@ export async function GET(request: NextRequest) {
   }
 
   // Check if user's email is in the allowed_emails table
-  const { data: { user } } = await supabase.auth.getUser();
-
-  console.log("[CALLBACK] User email:", user?.email);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (user?.email) {
-    const { data: allowedEmail, error: allowedError } = await supabase
+    const { data: allowedEmail } = await supabase
       .from("allowed_emails")
       .select("email")
       .ilike("email", user.email)
       .single();
 
-    console.log("[CALLBACK] Allowed check:", { allowedEmail, allowedError });
-
     if (!allowedEmail) {
-      // User not authorized - sign them out
+      // User not authorized - sign them out and redirect to login
       await supabase.auth.signOut();
-      return NextResponse.redirect(
+
+      const errorResponse = NextResponse.redirect(
         `${requestUrl.origin}/login?error=${encodeURIComponent("אימייל לא מורשה. אנא פנה למנהל המערכת.")}`
       );
+
+      // Clear auth cookies
+      request.cookies.getAll().forEach((cookie) => {
+        if (cookie.name.startsWith("sb-")) {
+          errorResponse.cookies.set(cookie.name, "", { maxAge: 0, path: "/" });
+        }
+      });
+
+      return errorResponse;
     }
   }
 
-  // User is authorized - redirect to requested page
-  return NextResponse.redirect(`${requestUrl.origin}${redirect}`);
+  // User is authorized - return response with session cookies
+  return response;
 }

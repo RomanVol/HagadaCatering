@@ -1,6 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -9,21 +8,23 @@ export async function GET(request: NextRequest) {
   try {
     const origin = request.nextUrl.origin;
 
-    const cookieStore = await cookies();
+    // We'll set cookies on whichever response we return
+    let response: NextResponse;
+    const cookiesToSetLater: Array<{
+      name: string;
+      value: string;
+      options: CookieOptions;
+    }> = [];
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
         getAll() {
-          return cookieStore.getAll();
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Ignore errors in Server Components
-          }
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookiesToSetLater.push({ name, value, options: options as CookieOptions });
+          });
         },
       },
     });
@@ -40,11 +41,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(`${origin}/login?error=${msg}`);
     }
 
-    return NextResponse.redirect(data.url);
+    // Create redirect response and set the PKCE cookies on it
+    response = NextResponse.redirect(data.url);
+    cookiesToSetLater.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
+
+    return response;
   } catch (error) {
     console.error("OAuth login error:", error);
     return NextResponse.json(
-      { error: "login_failed", message: error instanceof Error ? error.message : String(error) },
+      {
+        error: "login_failed",
+        message: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
