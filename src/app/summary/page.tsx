@@ -707,54 +707,54 @@ export default function SummaryPage() {
   return (
     <AuthGuard>
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      {/* Header - Mobile optimized */}
+      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
           <button
             onClick={() => router.push("/order")}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 text-gray-600 hover:text-gray-900 active:scale-95 transition-all p-1.5 -m-1.5 rounded-lg"
           >
             <ArrowRight className="w-5 h-5" />
-            <span>{LABELS.back}</span>
+            <span className="text-sm sm:text-base">{LABELS.back}</span>
           </button>
-          <h1 className="text-xl font-bold text-gray-900">{LABELS.title}</h1>
+          <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">{LABELS.title}</h1>
           <button
             onClick={() => window.print()}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 active:scale-95 transition-all p-2 -m-2 rounded-lg"
           >
             <Printer className="w-5 h-5" />
           </button>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Date Range Filter */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 print-hide">
+        <div className="bg-white rounded-xl border border-gray-200 p-3 sm:p-4 print-hide">
           {/* Quick Filter Buttons */}
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
             <button
               onClick={setToday}
-              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-xs sm:text-sm"
             >
               {LABELS.today}
             </button>
             <button
               onClick={setThisWeek}
-              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-xs sm:text-sm"
             >
               {LABELS.thisWeek}
             </button>
             <button
               onClick={setNextWeek}
-              className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-sm"
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 active:scale-[0.98] transition-all text-xs sm:text-sm"
             >
               {LABELS.nextWeek}
             </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 items-end">
-            <div className="flex-1 space-y-1">
-              <label className="text-sm font-medium text-gray-700">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-end">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs sm:text-sm font-medium text-gray-700">
                 {LABELS.fromDate}
               </label>
               <div className="relative">
@@ -763,19 +763,19 @@ export default function SummaryPage() {
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className={cn(
-                    "w-full h-12 pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all",
-                    fromDate ? "pl-24" : "pl-4"
+                    "w-full h-11 sm:h-12 pr-3 sm:pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm sm:text-base",
+                    fromDate ? "pl-20 sm:pl-24" : "pl-3 sm:pl-4"
                   )}
                 />
                 {fromDate && (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-medium pointer-events-none">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-600 font-medium pointer-events-none">
                     יום {getHebrewDayName(fromDate)}
                   </span>
                 )}
               </div>
             </div>
-            <div className="flex-1 space-y-1">
-              <label className="text-sm font-medium text-gray-700">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs sm:text-sm font-medium text-gray-700">
                 {LABELS.toDate}
               </label>
               <div className="relative">
@@ -784,12 +784,12 @@ export default function SummaryPage() {
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
                   className={cn(
-                    "w-full h-12 pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all",
-                    toDate ? "pl-24" : "pl-4"
+                    "w-full h-11 sm:h-12 pr-3 sm:pr-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm sm:text-base",
+                    toDate ? "pl-20 sm:pl-24" : "pl-3 sm:pl-4"
                   )}
                 />
                 {toDate && (
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-blue-600 font-medium pointer-events-none">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs sm:text-sm text-blue-600 font-medium pointer-events-none">
                     יום {getHebrewDayName(toDate)}
                   </span>
                 )}
@@ -798,51 +798,51 @@ export default function SummaryPage() {
           </div>
 
           {/* Name and Phone Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mt-4 pt-4 border-t border-gray-200">
-            <div className="flex-1 space-y-1">
-              <label className="text-sm font-medium text-gray-700">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs sm:text-sm font-medium text-gray-700">
                 {LABELS.customerName}
               </label>
               <div className="relative">
-                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <User className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
                   value={customerNameFilter}
                   onChange={(e) => setCustomerNameFilter(e.target.value)}
                   placeholder="חיפוש לפי שם..."
-                  className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+                  className="w-full h-11 sm:h-12 pr-9 sm:pr-10 pl-3 sm:pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm sm:text-base"
                 />
               </div>
             </div>
-            <div className="flex-1 space-y-1">
-              <label className="text-sm font-medium text-gray-700">
+            <div className="flex-1 w-full space-y-1">
+              <label className="text-xs sm:text-sm font-medium text-gray-700">
                 {LABELS.phone}
               </label>
               <div className="relative">
-                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400 pointer-events-none" />
                 <input
                   type="tel"
                   value={phoneFilter}
                   onChange={(e) => setPhoneFilter(e.target.value)}
                   placeholder="חיפוש לפי טלפון..."
                   dir="ltr"
-                  className="w-full h-12 pr-10 pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-left"
+                  className="w-full h-11 sm:h-12 pr-9 sm:pr-10 pl-3 sm:pl-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-left text-sm sm:text-base"
                 />
               </div>
             </div>
           </div>
 
           {/* Search Button */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
             <button
               onClick={handleFilter}
               disabled={isLoading || !hasAnyFilter}
-              className="w-full h-12 px-6 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full h-11 sm:h-12 px-4 sm:px-6 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
             >
               {isLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
               ) : (
-                <Filter className="w-5 h-5" />
+                <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
               <span>{LABELS.filter}</span>
             </button>
@@ -851,11 +851,11 @@ export default function SummaryPage() {
 
         {/* View Toggle */}
         {hasSearched && orders.length > 0 && (
-          <div className="flex gap-2 print-hide">
+          <div className="flex gap-1.5 sm:gap-2 print-hide">
             <button
               onClick={() => setViewMode("orders")}
               className={cn(
-                "flex-1 h-12 font-semibold rounded-lg transition-all",
+                "flex-1 h-10 sm:h-12 font-semibold rounded-lg transition-all text-sm sm:text-base",
                 viewMode === "orders"
                   ? "bg-blue-500 text-white"
                   : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -866,7 +866,7 @@ export default function SummaryPage() {
             <button
               onClick={() => setViewMode("summary")}
               className={cn(
-                "flex-1 h-12 font-semibold rounded-lg transition-all",
+                "flex-1 h-10 sm:h-12 font-semibold rounded-lg transition-all text-sm sm:text-base",
                 viewMode === "summary"
                   ? "bg-blue-500 text-white"
                   : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
@@ -1116,14 +1116,14 @@ export default function SummaryPage() {
                       </p>
                     )}
 
-                    {/* Action Buttons */}
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex gap-2">
+                    {/* Action Buttons - Mobile optimized */}
+                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 flex flex-col sm:flex-row gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handlePrintOrder(order);
                         }}
-                        className="flex-1 h-10 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 h-10 sm:h-10 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                       >
                         <Printer className="w-4 h-4" />
                         <span>הדפס</span>
@@ -1133,20 +1133,20 @@ export default function SummaryPage() {
                           e.stopPropagation();
                           handleEditOrder(order.id);
                         }}
-                        className="flex-1 h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 h-10 sm:h-10 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                       >
                         <Pencil className="w-4 h-4" />
-                        <span>ערוך הזמנה</span>
+                        <span>ערוך</span>
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDeleteOrder(order.id, String(order.order_number));
                         }}
-                        className="flex-1 h-10 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                        className="flex-1 h-10 sm:h-10 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                       >
                         <Trash2 className="w-4 h-4" />
-                        <span>מחק הזמנה</span>
+                        <span>מחק</span>
                       </button>
                     </div>
                   </div>

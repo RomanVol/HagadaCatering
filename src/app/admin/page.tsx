@@ -663,18 +663,18 @@ export default function AdminPage() {
   return (
     <AuthGuard>
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      {/* Header - Mobile optimized */}
+      <header className="bg-white/95 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between gap-2">
           <button
             onClick={() => router.push("/order")}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 text-gray-600 hover:text-gray-900 active:scale-95 transition-all p-1.5 -m-1.5 rounded-lg"
           >
             <ArrowRight className="w-5 h-5" />
-            <span>{LABELS.back}</span>
+            <span className="text-sm sm:text-base">{LABELS.back}</span>
           </button>
-          <h1 className="text-xl font-bold text-gray-900">{LABELS.title}</h1>
-          <div className="w-20" /> {/* Spacer for centering */}
+          <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">{LABELS.title}</h1>
+          <div className="w-12 sm:w-20" /> {/* Spacer for centering */}
         </div>
       </header>
 
@@ -697,16 +697,16 @@ export default function AdminPage() {
         </div>
       )}
 
-      <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        {/* Category Tabs */}
-        <div className="bg-white rounded-xl border border-gray-200 p-2">
-          <div className="flex flex-wrap gap-2">
+      <main className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+        {/* Category Tabs - Mobile optimized */}
+        <div className="bg-white rounded-xl border border-gray-200 p-1.5 sm:p-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {categories.map((category) => (
               <button
                 key={category.id}
                 onClick={() => setSelectedCategoryId(category.id)}
                 className={cn(
-                  "px-4 py-2 rounded-lg font-medium transition-all text-sm",
+                  "px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium transition-all text-xs sm:text-sm active:scale-95",
                   selectedCategoryId === category.id
                     ? "bg-blue-500 text-white"
                     : "bg-gray-100 text-gray-700 hover:bg-gray-200"
@@ -718,12 +718,12 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center justify-between">
+        {/* Controls - Mobile optimized */}
+        <div className="flex items-center justify-between gap-2">
           <button
             onClick={() => setShowInactive(!showInactive)}
             className={cn(
-              "text-sm font-medium transition-colors",
+              "text-xs sm:text-sm font-medium transition-colors p-1.5 -m-1.5 rounded-lg",
               showInactive ? "text-blue-600" : "text-gray-500"
             )}
           >
@@ -736,9 +736,9 @@ export default function AdminPage() {
               setNewItemName("");
               setNewItemMeasurementType((isSaladsCategory || isExtrasCategory || isBakeryCategory) ? "liters" : "none");
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all text-sm"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             <span>{LABELS.addItem}</span>
           </button>
         </div>
