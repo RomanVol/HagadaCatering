@@ -18,10 +18,10 @@ export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
 
   // Handle OAuth callback at root level (Supabase redirects here with ?code=)
+  // Only redirect if NOT already at callback URL to avoid infinite loop
   const code = searchParams.get("code");
 
-  if (code) {
-    // Redirect to our callback handler
+  if (code && !pathname.startsWith("/api/auth/callback")) {
     const callbackUrl = new URL("/api/auth/callback", request.url);
     callbackUrl.searchParams.set("code", code);
     callbackUrl.searchParams.set("redirect", "/order");
