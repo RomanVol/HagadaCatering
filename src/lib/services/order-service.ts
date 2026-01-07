@@ -28,6 +28,7 @@ export interface SaveOrderInput {
     preparation_id?: string | null; // Selected preparation option
     variation_id?: string | null; // For items with variations (e.g., rice types)
     add_on_id?: string | null; // For add-on items (e.g., רוטב לרול)
+    price?: number | null; // Price for extras category items
   }[];
   // Extra items from mains/sides/middle_courses with custom prices
   extra_items?: {
@@ -190,6 +191,7 @@ export async function saveOrder(input: SaveOrderInput): Promise<SaveOrderResult>
         preparation_id: item.preparation_id || null, // Selected preparation option
         variation_id: item.variation_id || null, // For items with variations (e.g., rice types)
         add_on_id: item.add_on_id || null, // For add-on items
+        price: item.price ?? null, // Price for extras category items
       }));
 
     if (orderItems.length > 0) {
@@ -1006,6 +1008,7 @@ export interface UpdateOrderInput {
     quantity: number;
     preparation_id?: string;
     note?: string;
+    price?: number;
   }[];
   bakery: {
     food_item_id: string;
@@ -1097,6 +1100,7 @@ export async function updateOrder(
       preparation_id: string | null;
       variation_id: string | null;
       add_on_id: string | null;
+      price: number | null;
     }[] = [];
 
     // Helper function to get valid liter_size_id (null for custom liters)
@@ -1127,6 +1131,7 @@ export async function updateOrder(
               preparation_id: null,
               variation_id: null,
               add_on_id: null,
+              price: null,
             });
             isFirstItem = false;
           }
@@ -1144,6 +1149,7 @@ export async function updateOrder(
             preparation_id: null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
           isFirstItem = false;
         }
@@ -1159,6 +1165,7 @@ export async function updateOrder(
             preparation_id: null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
           isFirstItem = false;
         }
@@ -1174,6 +1181,7 @@ export async function updateOrder(
           preparation_id: null,
           variation_id: null,
           add_on_id: null,
+          price: null,
         });
       }
 
@@ -1191,6 +1199,7 @@ export async function updateOrder(
             preparation_id: null,
             variation_id: null,
             add_on_id: addOn.addon_id,
+            price: null,
           });
         } else {
           for (const liter of addOn.liters) {
@@ -1206,6 +1215,7 @@ export async function updateOrder(
                 preparation_id: null,
                 variation_id: null,
                 add_on_id: addOn.addon_id,
+                price: null,
               });
             }
           }
@@ -1233,6 +1243,7 @@ export async function updateOrder(
             preparation_id: item.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
         }
       }
@@ -1258,6 +1269,7 @@ export async function updateOrder(
               preparation_id: item.preparation_id || null,
               variation_id: null,
               add_on_id: null,
+              price: item.price || null,
             });
             isFirstItem = false;
           }
@@ -1275,6 +1287,7 @@ export async function updateOrder(
             preparation_id: item.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: item.price || null,
           });
           isFirstItem = false;
         }
@@ -1290,6 +1303,7 @@ export async function updateOrder(
             preparation_id: item.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: item.price || null,
           });
         }
       } else if (item.quantity > 0) {
@@ -1304,6 +1318,7 @@ export async function updateOrder(
           preparation_id: item.preparation_id || null,
           variation_id: null,
           add_on_id: null,
+          price: item.price || null,
         });
       }
     }
@@ -1328,6 +1343,7 @@ export async function updateOrder(
               preparation_id: item.preparation_id || null,
               variation_id: null,
               add_on_id: null,
+              price: null,
             });
             isFirstItem = false;
           }
@@ -1345,6 +1361,7 @@ export async function updateOrder(
             preparation_id: item.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
           isFirstItem = false;
         }
@@ -1360,6 +1377,7 @@ export async function updateOrder(
             preparation_id: item.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
         }
       } else if (item.quantity > 0) {
@@ -1374,6 +1392,7 @@ export async function updateOrder(
           preparation_id: item.preparation_id || null,
           variation_id: null,
           add_on_id: null,
+          price: null,
         });
       }
     }
@@ -1397,6 +1416,7 @@ export async function updateOrder(
               preparation_id: side.preparation_id || null,
               variation_id: variation.variation_id,
               add_on_id: null,
+              price: null,
             });
             isFirstItem = false;
           }
@@ -1412,6 +1432,7 @@ export async function updateOrder(
               preparation_id: side.preparation_id || null,
               variation_id: variation.variation_id,
               add_on_id: null,
+              price: null,
             });
             isFirstItem = false;
           }
@@ -1429,6 +1450,7 @@ export async function updateOrder(
             preparation_id: side.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
           isFirstItem = false;
         }
@@ -1444,6 +1466,7 @@ export async function updateOrder(
             preparation_id: side.preparation_id || null,
             variation_id: null,
             add_on_id: null,
+            price: null,
           });
         }
       }
@@ -1519,6 +1542,31 @@ export async function updateOrder(
     }
 
     return { success: true, order, customer };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+/**
+ * Delete an order and all related items (cascading delete handles order_items, extra_order_items)
+ */
+export async function deleteOrder(orderId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("orders")
+      .delete()
+      .eq("id", orderId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
   } catch (error) {
     return {
       success: false,

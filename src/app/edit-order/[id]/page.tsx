@@ -465,7 +465,24 @@ export default function EditOrderPage() {
                 const itemIndex = newState.extras.findIndex(e => e.food_item_id === item.food_item_id);
                 if (itemIndex !== -1) {
                   newState.extras[itemIndex].selected = true;
-                  newState.extras[itemIndex].quantity = item.quantity;
+                  newState.extras[itemIndex].price = item.price || undefined;
+
+                  // Handle different measurement types (same as salads)
+                  if (item.liter_size_id) {
+                    const literIndex = newState.extras[itemIndex].liters?.findIndex(
+                      l => l.liter_size_id === item.liter_size_id
+                    );
+                    if (literIndex !== undefined && literIndex !== -1 && newState.extras[itemIndex].liters) {
+                      newState.extras[itemIndex].liters[literIndex].quantity = item.quantity;
+                    }
+                  } else if (item.size_type === "big") {
+                    newState.extras[itemIndex].size_big = item.quantity;
+                  } else if (item.size_type === "small") {
+                    newState.extras[itemIndex].size_small = item.quantity;
+                  } else {
+                    newState.extras[itemIndex].quantity = item.quantity;
+                  }
+
                   if (item.item_note) {
                     newState.extras[itemIndex].note = item.item_note;
                   }

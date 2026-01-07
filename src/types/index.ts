@@ -130,6 +130,7 @@ export interface OrderItem {
   variation_id: string | null; // For items with variations (e.g., rice types)
   quantity: number;
   item_note: string | null; // Free-text note for this item
+  price: number | null; // Price for extras category items
   created_at: string;
 }
 

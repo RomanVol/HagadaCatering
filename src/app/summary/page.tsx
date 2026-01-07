@@ -14,6 +14,7 @@ import {
   Package,
   Printer,
   Pencil,
+  Trash2,
   MapPin,
   Clock,
   DollarSign,
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import {
   getOrdersByDateRange,
   getOrdersSummary,
+  deleteOrder,
   OrderWithDetails,
   CategorySummary,
 } from "@/lib/services/order-service";
@@ -116,6 +118,28 @@ export default function SummaryPage() {
   const [filterMode, setFilterMode] = React.useState<FilterMode>("all");
   const [selectedCategories, setSelectedCategories] = React.useState<Set<string>>(new Set());
   const [selectedItems, setSelectedItems] = React.useState<Set<string>>(new Set());
+
+  // Memoize extras category for use in calculations and display
+  const extrasCategory = React.useMemo(() =>
+    categories.find(c => c.name_en === "extras"), [categories]);
+
+  // Helper to calculate total price for an order (matches OrderForm calculation)
+  const calculateOrderTotal = React.useCallback((order: OrderWithDetails) => {
+    // Sum extra_items prices (from mains/sides/middle_courses added as extras)
+    const extraItemsPrice = order.extra_items?.reduce((sum, item) => sum + item.price, 0) || 0;
+
+    // Sum extras category items prices (from order_items.price)
+    const extrasCategoryPrice = order.items
+      .filter(item => item.food_item?.category_id === extrasCategory?.id && item.price)
+      .reduce((sum, item) => sum + (item.price || 0), 0);
+
+    const totalExtraPrice = extraItemsPrice + extrasCategoryPrice;
+
+    if (order.total_portions && order.price_per_portion) {
+      return (order.total_portions * order.price_per_portion) + (order.delivery_fee || 0) + totalExtraPrice;
+    }
+    return totalExtraPrice > 0 ? totalExtraPrice : null;
+  }, [extrasCategory]);
 
   // Restore filters from sessionStorage on mount
   React.useEffect(() => {
@@ -399,6 +423,7 @@ export default function SummaryPage() {
       regular_quantity: number;
       note: string;
       preparation_name: string;
+      price: number | null;
     }>();
 
     for (const item of mainItems) {
@@ -418,6 +443,7 @@ export default function SummaryPage() {
           regular_quantity: 0,
           note: item.item_note || "",
           preparation_name: item.preparation?.name || "",
+          price: item.price ?? null,
         });
       }
 
@@ -467,7 +493,7 @@ export default function SummaryPage() {
     const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; preparation_name?: string; note: string }[] = [];
     const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; note: string }[] = [];
     const mains: { food_item_id: string; name: string; selected: boolean; quantity: number; portion_multiplier?: number; portion_unit?: string; note: string }[] = [];
-    const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
+    const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string; price?: number | null }[] = [];
     const bakery: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
 
     for (const item of itemsByFoodItem.values()) {
@@ -527,6 +553,7 @@ export default function SummaryPage() {
           selected: hasContent,
           quantity: item.regular_quantity,
           note: item.note,
+          price: item.price,
         });
       } else if (item.category_id === bakeryCategory?.id) {
         bakery.push({
@@ -572,13 +599,19 @@ export default function SummaryPage() {
       }
     });
 
-    // Calculate total price of extra items
+    // Calculate total price of extra items (from mains/sides/middle_courses added as extras)
     const extraItemsPrice = order.extra_items?.reduce((sum, item) => sum + item.price, 0) || 0;
-    
-    // Calculate total payment
+
+    // Calculate total price of extras category items (from order_items.price)
+    const extrasCategoryPrice = order.items
+      .filter(item => item.food_item?.category_id === extrasCategory?.id && item.price)
+      .reduce((sum, item) => sum + (item.price || 0), 0);
+
+    // Calculate total payment (includes both extra_items and extras category prices)
+    const totalExtraPrice = extraItemsPrice + extrasCategoryPrice;
     const totalPayment = (order.total_portions && order.price_per_portion)
-      ? (order.total_portions * order.price_per_portion) + (order.delivery_fee || 0) + extraItemsPrice
-      : (extraItemsPrice > 0 ? extraItemsPrice : undefined);
+      ? (order.total_portions * order.price_per_portion) + (order.delivery_fee || 0) + totalExtraPrice
+      : (totalExtraPrice > 0 ? totalExtraPrice : undefined);
 
     return {
       customer: {
@@ -641,6 +674,21 @@ export default function SummaryPage() {
     saveFiltersToSession();
     sessionStorage.setItem("navigationSource", "summary");
     router.push(`/edit-order/${orderId}`);
+  };
+
+  const handleDeleteOrder = async (orderId: string, orderNumber: string) => {
+    if (!confirm(`האם אתה בטוח שברצונך למחוק את הזמנה ${orderNumber}?`)) {
+      return;
+    }
+
+    const result = await deleteOrder(orderId);
+    if (result.success) {
+      // Remove from local state to update UI
+      setOrders(orders.filter(o => o.id !== orderId));
+      setExpandedOrderId(null);
+    } else {
+      alert(`שגיאה במחיקת ההזמנה: ${result.error}`);
+    }
   };
 
   if (dataLoading) {
@@ -880,9 +928,9 @@ export default function SummaryPage() {
                         {order.status === "cancelled" && "בוטל"}
                       </span>
                       {/* Price display */}
-                      {order.price_per_portion && order.total_portions && (
+                      {calculateOrderTotal(order) !== null && (
                         <span className="text-sm font-bold text-green-600 bg-green-50 px-2 py-1 rounded">
-                          ₪{((order.total_portions * order.price_per_portion) + (order.delivery_fee || 0)).toLocaleString()}
+                          ₪{calculateOrderTotal(order)!.toLocaleString()}
                         </span>
                       )}
                     </div>
@@ -996,21 +1044,29 @@ export default function SummaryPage() {
                           {group.categoryName}
                         </h4>
                         <div className="space-y-1">
-                          {group.items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center justify-between text-sm py-1"
-                            >
-                              <span className="text-gray-700">
-                                {item.food_item?.name}
-                              </span>
-                              <span className="text-gray-900 font-medium">
-                                {item.liter_size
-                                  ? `${item.liter_size.label} × ${item.quantity}`
-                                  : `× ${item.quantity}`}
-                              </span>
-                            </div>
-                          ))}
+                          {group.items.map((item) => {
+                            const isExtras = group.categoryId === extrasCategory?.id;
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between text-sm py-1"
+                              >
+                                <span className="text-gray-700">
+                                  {item.food_item?.name}
+                                  {isExtras && item.price && (
+                                    <span className="text-green-600 mr-2">
+                                      ₪{item.price}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="text-gray-900 font-medium">
+                                  {item.liter_size
+                                    ? `${item.liter_size.label} × ${item.quantity}`
+                                    : `× ${item.quantity}`}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     ))}
@@ -1081,6 +1137,16 @@ export default function SummaryPage() {
                       >
                         <Pencil className="w-4 h-4" />
                         <span>ערוך הזמנה</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteOrder(order.id, String(order.order_number));
+                        }}
+                        className="flex-1 h-10 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>מחק הזמנה</span>
                       </button>
                     </div>
                   </div>

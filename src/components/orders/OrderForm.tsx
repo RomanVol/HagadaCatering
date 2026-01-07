@@ -1572,6 +1572,7 @@ export function OrderForm() {
                   quantity: liter.quantity,
                   preparation_id: item.preparation_id || null,
                   item_note: isFirstItem && item.note ? item.note : null,
+                  price: item.price || null,
                 });
                 isFirstItem = false;
               }
@@ -1586,6 +1587,7 @@ export function OrderForm() {
                 quantity: item.size_big,
                 preparation_id: item.preparation_id || null,
                 item_note: isFirstItem && item.note ? item.note : null,
+                price: item.price || null,
               });
               isFirstItem = false;
             }
@@ -1597,6 +1599,7 @@ export function OrderForm() {
                 quantity: item.size_small,
                 preparation_id: item.preparation_id || null,
                 item_note: isFirstItem && item.note ? item.note : null,
+                price: item.price || null,
               });
             }
           } else {
@@ -1608,6 +1611,7 @@ export function OrderForm() {
                 quantity: item.quantity,
                 preparation_id: item.preparation_id || null,
                 item_note: item.note || null,
+                price: item.price || null,
               });
             }
           }
