@@ -7,6 +7,7 @@ import { useSupabaseData } from "@/hooks/useSupabaseData";
 import { Loader2 } from "lucide-react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 
+//test comment 
 // Types for stored print data
 interface PrintSaladData {
   food_item_id: string;
