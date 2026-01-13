@@ -68,8 +68,11 @@ interface ExtrasFormItem {
 interface SidesFormItem {
   food_item_id: string;
   selected: boolean;
+  measurement_type: "liters" | "size" | "none";
+  liters: { liter_size_id: string; quantity: number }[];
   size_big: number;
   size_small: number;
+  quantity: number;
   preparation_id?: string;
   preparation_name?: string;
   note?: string;
@@ -257,8 +260,17 @@ export default function EditOrderPage() {
         sides: sideItems.map((item) => ({
           food_item_id: item.id,
           selected: false,
+          measurement_type: item.measurement_type || "size",
+          liters: [
+            ...literSizes.map((ls) => ({ liter_size_id: ls.id, quantity: 0 })),
+            ...(item.custom_liters || []).filter((cl: { is_active: boolean }) => cl.is_active).map((cl: { id: string }) => ({
+              liter_size_id: `custom_${cl.id}`,
+              quantity: 0,
+            })),
+          ],
           size_big: 0,
           size_small: 0,
+          quantity: 0,
           variations: (item.variations || []).map((v) => ({
             variation_id: v.id,
             size_big: 0,
@@ -428,7 +440,11 @@ export default function EditOrderPage() {
               } else if (category.name_en === "sides") {
                 const itemIndex = newState.sides.findIndex(s => s.food_item_id === item.food_item_id);
                 if (itemIndex !== -1) {
+                  const foodItem = sideItems.find(si => si.id === item.food_item_id);
+                  const measurementType = foodItem?.measurement_type || "size";
+
                   newState.sides[itemIndex].selected = true;
+
                   if (item.variation_id) {
                     const varIndex = newState.sides[itemIndex].variations?.findIndex(
                       v => v.variation_id === item.variation_id
@@ -440,11 +456,29 @@ export default function EditOrderPage() {
                         newState.sides[itemIndex].variations![varIndex].size_small = item.quantity;
                       }
                     }
-                  } else if (item.size_type === "big") {
-                    newState.sides[itemIndex].size_big = item.quantity;
-                  } else if (item.size_type === "small") {
-                    newState.sides[itemIndex].size_small = item.quantity;
+                  } else if (item.liter_size_id) {
+                    // Handle liters measurement
+                    const literIndex = newState.sides[itemIndex].liters?.findIndex(
+                      l => l.liter_size_id === item.liter_size_id
+                    );
+                    if (literIndex !== undefined && literIndex !== -1 && newState.sides[itemIndex].liters) {
+                      newState.sides[itemIndex].liters[literIndex].quantity = item.quantity;
+                    }
+                  } else if (measurementType === "size" || item.size_type) {
+                    // Handle size measurement (ג׳/ק׳)
+                    if (item.size_type === "big") {
+                      newState.sides[itemIndex].size_big = item.quantity;
+                    } else if (item.size_type === "small") {
+                      newState.sides[itemIndex].size_small = item.quantity;
+                    } else if (item.quantity > 0) {
+                      // Fallback: if size_type is null but there's a quantity, default to size_big
+                      newState.sides[itemIndex].size_big = item.quantity;
+                    }
+                  } else {
+                    // Handle regular quantity (measurement_type="none")
+                    newState.sides[itemIndex].quantity = item.quantity;
                   }
+
                   if (item.item_note) {
                     newState.sides[itemIndex].note = item.item_note;
                   }
@@ -479,6 +513,15 @@ export default function EditOrderPage() {
                     newState.extras[itemIndex].size_big = item.quantity;
                   } else if (item.size_type === "small") {
                     newState.extras[itemIndex].size_small = item.quantity;
+                  } else if (item.quantity > 0 && !item.liter_size_id) {
+                    // Fallback: if size_type is null but there's a quantity, default to size_big for size-based items
+                    // or quantity for regular items
+                    const foodItem = extraItems.find(ei => ei.id === item.food_item_id);
+                    if (foodItem?.measurement_type === "size") {
+                      newState.extras[itemIndex].size_big = item.quantity;
+                    } else {
+                      newState.extras[itemIndex].quantity = item.quantity;
+                    }
                   } else {
                     newState.extras[itemIndex].quantity = item.quantity;
                   }
@@ -861,6 +904,8 @@ export default function EditOrderPage() {
               selected: false,
               size_big: 0,
               size_small: 0,
+              quantity: 0,
+              liters: item.liters.map((l) => ({ ...l, quantity: 0 })),
               variations: item.variations?.map((v) => ({ ...v, size_big: 0, size_small: 0 })),
               preparation_id: undefined,
               preparation_name: undefined,
@@ -1172,6 +1217,33 @@ export default function EditOrderPage() {
           };
           newItem.selected = newItem.size_big > 0 || newItem.size_small > 0;
           return newItem;
+        }
+        return item;
+      }),
+    }));
+  };
+
+  const handleSidesQuantityChange = (foodItemId: string, quantity: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, quantity, selected: quantity > 0 }
+          : item
+      ),
+    }));
+  };
+
+  const handleSidesLiterChange = (foodItemId: string, literSizeId: string, quantity: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newLiters = item.liters.map((l) =>
+            l.liter_size_id === literSizeId ? { ...l, quantity } : l
+          );
+          const hasAnyLiters = newLiters.some((l) => l.quantity > 0);
+          return { ...item, liters: newLiters, selected: hasAnyLiters };
         }
         return item;
       }),
@@ -1637,14 +1709,30 @@ export default function EditOrderPage() {
                 {sideItems.map((item) => {
                   const itemState = formState.sides.find((s) => s.food_item_id === item.id);
                   const hasVariations = item.variations && item.variations.length > 0;
+                  const measurementType = item.measurement_type || "size";
+                  const useSizeMode = measurementType === "size" && !hasVariations;
+                  const useLitersMode = measurementType === "liters";
+
+                  const literQuantitiesForCard = useLitersMode ?
+                    itemState?.liters.map((l) => {
+                      const literSize = literSizes.find((ls) => ls.id === l.liter_size_id);
+                      return {
+                        liter_size_id: l.liter_size_id,
+                        label: literSize?.label || "",
+                        quantity: l.quantity,
+                      };
+                    }).filter((l) => l.quantity > 0) : undefined;
+
                   return (
                     <FoodItemCard
                       key={item.id}
                       item={item}
                       selected={itemState?.selected || false}
-                      quantity={0}
-                      sizeQuantity={{ big: itemState?.size_big || 0, small: itemState?.size_small || 0 }}
-                      useSizeMode={!hasVariations}
+                      quantity={itemState?.quantity || 0}
+                      sizeQuantity={useSizeMode ? { big: itemState?.size_big || 0, small: itemState?.size_small || 0 } : undefined}
+                      useSizeMode={useSizeMode}
+                      useLitersMode={useLitersMode}
+                      literQuantities={literQuantitiesForCard}
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
                       variationQuantities={itemState?.variations}
@@ -1665,17 +1753,121 @@ export default function EditOrderPage() {
                 const expandedState = formState.sides.find((s) => s.food_item_id === expandedSideId);
                 if (!expandedItem) return null;
                 const hasVariations = expandedItem.variations && expandedItem.variations.length > 0;
+                const measurementType = expandedItem.measurement_type || "size";
+                const useSizeMode = measurementType === "size" && !hasVariations;
+                const useLitersMode = measurementType === "liters";
+
+                // For liters mode, create a special popup
+                if (useLitersMode) {
+                  return (
+                    <>
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 bg-black/50 z-40"
+                        onClick={() => setExpandedSideId(null)}
+                      />
+
+                      {/* Popup */}
+                      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[85vh] overflow-y-auto">
+                        <div className="max-w-lg mx-auto p-4">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-900">{expandedItem.name}</h3>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedSideId(null)}
+                              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {/* Liter Size Selectors */}
+                          <div className="mb-6">
+                            <span className="block text-gray-600 mb-3 text-center">בחר כמויות לפי ליטרים:</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              {literSizes.map((ls) => {
+                                const literQuantity = expandedState?.liters.find(
+                                  (l) => l.liter_size_id === ls.id
+                                )?.quantity || 0;
+                                return (
+                                  <div
+                                    key={ls.id}
+                                    className={cn(
+                                      "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                      literQuantity > 0
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "border-gray-200 bg-white"
+                                    )}
+                                  >
+                                    <span className={cn(
+                                      "text-lg font-bold mb-2",
+                                      literQuantity > 0 ? "text-blue-700" : "text-gray-700"
+                                    )}>
+                                      {ls.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => literQuantity > 0 && handleSidesLiterChange(expandedSideId, ls.id, literQuantity - 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSidesLiterChange(expandedSideId, ls.id, literQuantity + 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Notes field */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              📝 הערות
+                            </label>
+                            <textarea
+                              value={expandedState?.note || ""}
+                              onChange={(e) => handleSidesNoteChange(expandedSideId, e.target.value)}
+                              placeholder="הוסף הערה..."
+                              className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              dir="rtl"
+                            />
+                          </div>
+
+                          {/* Done button */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSideId(null)}
+                            className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+                          >
+                            אישור
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                }
+
                 return (
                   <FoodItemPopup
                     item={expandedItem}
-                    quantity={0}
-                    sizeQuantity={{ big: expandedState?.size_big || 0, small: expandedState?.size_small || 0 }}
-                    useSizeMode={!hasVariations}
+                    quantity={expandedState?.quantity || 0}
+                    sizeQuantity={useSizeMode ? { big: expandedState?.size_big || 0, small: expandedState?.size_small || 0 } : undefined}
+                    useSizeMode={useSizeMode}
                     selectedPreparationId={expandedState?.preparation_id}
                     note={expandedState?.note}
                     variationQuantities={expandedState?.variations}
-                    onQuantityChange={() => {}}
-                    onSizeChange={(size, qty) => handleSidesSizeChange(expandedSideId, size, qty)}
+                    onQuantityChange={(qty) => handleSidesQuantityChange(expandedSideId, qty)}
+                    onSizeChange={useSizeMode ? (size, qty) => handleSidesSizeChange(expandedSideId, size, qty) : undefined}
                     onPreparationChange={(prepId, prepName) => handleSidesPreparationChange(expandedSideId, prepId, prepName)}
                     onNoteChange={(note) => handleSidesNoteChange(expandedSideId, note)}
                     onVariationSizeChange={(variationId, size, qty) => handleSidesVariationSizeChange(expandedSideId, variationId, size, qty)}

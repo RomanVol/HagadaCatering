@@ -818,6 +818,22 @@ export async function getOrdersSummary(
         });
       }
     }
+    // Handle items with null size_type but quantity > 0 for size-based categories (sides)
+    // Fallback: treat as "big" size
+    else if (!item.size_type && item.quantity > 0 && category.name_en === "sides") {
+      const existingSize = summaryItem.size_quantities?.find(
+        (sq) => sq.size_type === "big"
+      );
+      if (existingSize) {
+        existingSize.total_quantity += item.quantity;
+      } else {
+        summaryItem.size_quantities?.push({
+          size_type: "big",
+          size_label: "ג׳",
+          total_quantity: item.quantity,
+        });
+      }
+    }
     // Handle regular quantities
     else {
       summaryItem.total_quantity = (summaryItem.total_quantity || 0) + item.quantity;
@@ -985,8 +1001,11 @@ export interface UpdateOrderInput {
   sides: {
     food_item_id: string;
     selected: boolean;
+    measurement_type?: string;
+    liters?: { liter_size_id: string; quantity: number }[];
     size_big: number;
     size_small: number;
+    quantity?: number;
     preparation_id?: string;
     note?: string;
     variations?: { variation_id: string; size_big: number; size_small: number }[];
@@ -1397,10 +1416,11 @@ export async function updateOrder(
       }
     }
 
-    // Add sides
+    // Add sides (supports variations, liters, size, and regular quantity)
     for (const side of input.sides) {
       if (!side.selected) continue;
       let isFirstItem = true;
+      const measurementType = side.measurement_type || "size";
 
       if (side.variations && side.variations.length > 0) {
         for (const variation of side.variations) {
@@ -1437,7 +1457,28 @@ export async function updateOrder(
             isFirstItem = false;
           }
         }
-      } else {
+      } else if (measurementType === "liters" && side.liters) {
+        // Handle liters measurement
+        for (const liter of side.liters) {
+          if (liter.quantity > 0) {
+            orderItems.push({
+              id: uuidv4(),
+              order_id: orderId,
+              food_item_id: side.food_item_id,
+              liter_size_id: getValidLiterSizeId(liter.liter_size_id),
+              size_type: null,
+              quantity: liter.quantity,
+              item_note: isFirstItem && side.note ? side.note : null,
+              preparation_id: side.preparation_id || null,
+              variation_id: null,
+              add_on_id: null,
+              price: null,
+            });
+            isFirstItem = false;
+          }
+        }
+      } else if (measurementType === "size") {
+        // Handle size measurement (ג׳/ק׳)
         if (side.size_big > 0) {
           orderItems.push({
             id: uuidv4(),
@@ -1469,6 +1510,21 @@ export async function updateOrder(
             price: null,
           });
         }
+      } else if (side.quantity && side.quantity > 0) {
+        // Regular quantity (measurement_type="none")
+        orderItems.push({
+          id: uuidv4(),
+          order_id: orderId,
+          food_item_id: side.food_item_id,
+          liter_size_id: null,
+          size_type: null,
+          quantity: side.quantity,
+          item_note: side.note || null,
+          preparation_id: side.preparation_id || null,
+          variation_id: null,
+          add_on_id: null,
+          price: null,
+        });
       }
     }
 

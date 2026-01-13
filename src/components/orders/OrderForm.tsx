@@ -90,12 +90,18 @@ interface ExtraItemEntry {
   preparation_name?: string;
 }
 
-// Sides use size-based quantities (ג/ק)
+// Sides form item - supports all measurement types like extras
 interface SidesFormItem {
   food_item_id: string;
   selected: boolean;
-  size_big: number;   // ג - גדול
-  size_small: number; // ק - קטן
+  measurement_type: MeasurementType;
+  // For liters measurement
+  liters: { liter_size_id: string; quantity: number }[];
+  // For size measurement (Big/Small) - ג/ק
+  size_big: number;
+  size_small: number;
+  // For regular quantity (measurement_type "none")
+  quantity: number;
   preparation_id?: string;
   preparation_name?: string;
   note?: string;
@@ -219,8 +225,22 @@ export function OrderForm() {
     sides: sideItems.map((item) => ({
       food_item_id: item.id,
       selected: false,
+      measurement_type: item.measurement_type || "size",
+      liters: [
+        // Global liter sizes
+        ...literSizes.map((ls) => ({
+          liter_size_id: ls.id,
+          quantity: 0,
+        })),
+        // Custom liter sizes for this item (prefixed with "custom_")
+        ...(item.custom_liters || []).filter(cl => cl.is_active).map((cl) => ({
+          liter_size_id: `custom_${cl.id}`,
+          quantity: 0,
+        })),
+      ],
       size_big: 0,
       size_small: 0,
+      quantity: 0,
       variations: (item.variations || []).map((v) => ({
         variation_id: v.id,
         size_big: 0,
@@ -236,10 +256,18 @@ export function OrderForm() {
       food_item_id: item.id,
       selected: false,
       measurement_type: item.measurement_type || "none",
-      liters: literSizes.map((ls) => ({
-        liter_size_id: ls.id,
-        quantity: 0,
-      })),
+      liters: [
+        // Global liter sizes
+        ...literSizes.map((ls) => ({
+          liter_size_id: ls.id,
+          quantity: 0,
+        })),
+        // Custom liter sizes for this item (prefixed with "custom_")
+        ...(item.custom_liters || []).filter(cl => cl.is_active).map((cl) => ({
+          liter_size_id: `custom_${cl.id}`,
+          quantity: 0,
+        })),
+      ],
       size_big: 0,
       size_small: 0,
       quantity: 0,
@@ -813,6 +841,8 @@ export function OrderForm() {
               selected: false,
               size_big: 0,
               size_small: 0,
+              quantity: 0,
+              liters: item.liters.map(l => ({ ...l, quantity: 0 })),
               preparation_id: undefined,
               preparation_name: undefined,
               note: undefined,
@@ -1084,6 +1114,44 @@ export function OrderForm() {
     }));
   };
 
+  // Handler for sides liter changes
+  const handleSidesLiterChange = (
+    foodItemId: string,
+    literSizeId: string,
+    quantity: number
+  ) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) => {
+        if (item.food_item_id === foodItemId) {
+          const newLiters = item.liters.map((l) =>
+            l.liter_size_id === literSizeId ? { ...l, quantity } : l
+          );
+          // Auto-select if any liter quantity > 0
+          const hasAnyLiters = newLiters.some((l) => l.quantity > 0);
+          return {
+            ...item,
+            liters: newLiters,
+            selected: hasAnyLiters || item.size_big > 0 || item.size_small > 0,
+          };
+        }
+        return item;
+      }),
+    }));
+  };
+
+  // Handler for sides quantity changes (for measurement_type "none")
+  const handleSidesQuantityChange = (foodItemId: string, quantity: number) => {
+    setFormState((prev) => ({
+      ...prev,
+      sides: prev.sides.map((item) =>
+        item.food_item_id === foodItemId
+          ? { ...item, quantity, selected: quantity > 0 }
+          : item
+      ),
+    }));
+  };
+
   const handleSidesPreparationChange = (
     foodItemId: string,
     preparationId: string | undefined,
@@ -1296,6 +1364,27 @@ export function OrderForm() {
             selected: s.selected,
             size_big: s.size_big,
             size_small: s.size_small,
+            quantity: s.quantity,
+            liters: s.liters
+              ?.filter(l => l.quantity > 0)
+              .map(l => {
+                const literSize = literSizes.find(ls => ls.id === l.liter_size_id);
+                // Handle custom liters
+                if (l.liter_size_id.startsWith("custom_")) {
+                  const customId = l.liter_size_id.replace("custom_", "");
+                  const customLiter = foodItem?.custom_liters?.find(cl => cl.id === customId);
+                  return {
+                    liter_size_id: l.liter_size_id,
+                    label: customLiter?.label || "",
+                    quantity: l.quantity,
+                  };
+                }
+                return {
+                  liter_size_id: l.liter_size_id,
+                  label: literSize?.label || "",
+                  quantity: l.quantity,
+                };
+              }),
             preparation_name: s.preparation_name,
             note: s.note,
             variations: s.variations
@@ -1618,11 +1707,13 @@ export function OrderForm() {
         }
       });
 
-      // Add sides items (supports variations)
+      // Add sides items (supports variations, liters, size, and regular quantity)
       formState.sides.forEach((item) => {
         if (item.selected) {
+          const sideItem = sideItems.find((s) => s.id === item.food_item_id);
+          const measurementType = item.measurement_type || sideItem?.measurement_type || "size";
           let isFirstItem = true;
-          
+
           // Check if item has variations (like אורז)
           if (item.variations && item.variations.length > 0) {
             // Add each variation with its quantities
@@ -1652,8 +1743,22 @@ export function OrderForm() {
                 isFirstItem = false;
               }
             });
-          } else {
-            // Regular size-based items (no variations)
+          } else if (measurementType === "liters") {
+            // Save liter-based quantities
+            item.liters.forEach((liter) => {
+              if (liter.quantity > 0) {
+                items.push({
+                  food_item_id: item.food_item_id,
+                  liter_size_id: liter.liter_size_id,
+                  quantity: liter.quantity,
+                  preparation_id: item.preparation_id || null,
+                  item_note: isFirstItem && item.note ? item.note : null,
+                });
+                isFirstItem = false;
+              }
+            });
+          } else if (measurementType === "size") {
+            // Size-based items (ג׳/ק׳)
             if (item.size_big > 0) {
               items.push({
                 food_item_id: item.food_item_id,
@@ -1675,6 +1780,17 @@ export function OrderForm() {
                 item_note: isFirstItem && item.note ? item.note : null,
               });
               isFirstItem = false;
+            }
+          } else {
+            // Regular quantity (measurement_type="none")
+            if (item.quantity > 0) {
+              items.push({
+                food_item_id: item.food_item_id,
+                liter_size_id: null,
+                quantity: item.quantity,
+                preparation_id: item.preparation_id || null,
+                item_note: item.note || null,
+              });
             }
           }
         }
@@ -2226,25 +2342,53 @@ const dayName = getHebrewDay(formState.order_date);
                     (s) => s.food_item_id === item.id
                   );
                   const hasVariations = item.variations && item.variations.length > 0;
+                  const measurementType = item.measurement_type || "size";
+                  const useSizeMode = measurementType === "size" && !hasVariations;
+                  const useLitersMode = measurementType === "liters";
+
+                  // Calculate quantity display based on measurement type
+                  const displayQuantity = measurementType === "none" ? (itemState?.quantity || 0) : 0;
+
+                  // Prepare liter quantities for display
+                  const literQuantitiesForCard = useLitersMode ?
+                    itemState?.liters.map((l) => {
+                      const literSize = literSizes.find((ls) => ls.id === l.liter_size_id);
+                      // Handle custom liters
+                      if (l.liter_size_id.startsWith("custom_")) {
+                        const customId = l.liter_size_id.replace("custom_", "");
+                        const customLiter = item.custom_liters?.find(cl => cl.id === customId);
+                        return {
+                          liter_size_id: l.liter_size_id,
+                          label: customLiter?.label || "",
+                          quantity: l.quantity,
+                        };
+                      }
+                      return {
+                        liter_size_id: l.liter_size_id,
+                        label: literSize?.label || "",
+                        quantity: l.quantity,
+                      };
+                    }).filter((l) => l.quantity > 0) : undefined;
+
                   return (
                     <FoodItemCard
                       key={item.id}
                       item={item}
                       selected={itemState?.selected || false}
-                      quantity={0}
-                      sizeQuantity={{
+                      quantity={displayQuantity}
+                      sizeQuantity={useSizeMode ? {
                         big: itemState?.size_big || 0,
                         small: itemState?.size_small || 0,
-                      }}
-                      useSizeMode={!hasVariations}
+                      } : undefined}
+                      useSizeMode={useSizeMode}
+                      useLitersMode={useLitersMode}
+                      literQuantities={literQuantitiesForCard}
                       preparationName={itemState?.preparation_name}
                       note={itemState?.note}
                       variationQuantities={itemState?.variations}
                       extraQuantity={getExtraForItem(item.id)}
                       onSelect={() => {
-                        // Only select if size_big or size_small > 0
-                        const isSelected = (itemState?.size_big || 0) > 0 || (itemState?.size_small || 0) > 0;
-                        handleSidesToggle(item.id, isSelected);
+                        handleSidesToggle(item.id, itemState?.selected || false);
                         setExpandedSideId(item.id);
                       }}
                     />
@@ -2259,25 +2403,194 @@ const dayName = getHebrewDay(formState.order_date);
                   (s) => s.food_item_id === expandedSideId
                 );
                 if (!expandedItem) return null;
-                
+
                 const hasVariations = expandedItem.variations && expandedItem.variations.length > 0;
-                
+                const measurementType = expandedItem.measurement_type || "size";
+                const useSizeMode = measurementType === "size" && !hasVariations;
+                const useLitersMode = measurementType === "liters";
+
+                // For liters mode, use custom popup
+                if (useLitersMode) {
+                  return (
+                    <>
+                      {/* Backdrop */}
+                      <div
+                        className="fixed inset-0 bg-black/50 z-40"
+                        onClick={() => setExpandedSideId(null)}
+                      />
+
+                      {/* Popup */}
+                      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-xl animate-slide-up max-h-[85vh] overflow-y-auto">
+                        <div className="max-w-lg mx-auto p-4">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-gray-900">{expandedItem.name}</h3>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedSideId(null)}
+                              className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </div>
+
+                          {/* Liter Size Selectors */}
+                          <div className="mb-6">
+                            <span className="block text-gray-600 mb-3 text-center">בחר כמויות לפי ליטרים:</span>
+                            <div className="grid grid-cols-2 gap-3">
+                              {literSizes.map((ls) => {
+                                const literQuantity = expandedState?.liters.find(
+                                  (l) => l.liter_size_id === ls.id
+                                )?.quantity || 0;
+                                return (
+                                  <div
+                                    key={ls.id}
+                                    className={cn(
+                                      "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                      literQuantity > 0
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "border-gray-200 bg-white"
+                                    )}
+                                  >
+                                    <span className={cn(
+                                      "text-lg font-bold mb-2",
+                                      literQuantity > 0 ? "text-blue-700" : "text-gray-700"
+                                    )}>
+                                      {ls.label}
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => literQuantity > 0 && handleSidesLiterChange(expandedSideId, ls.id, literQuantity - 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSidesLiterChange(expandedSideId, ls.id, literQuantity + 1)}
+                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Custom liter sizes for this item */}
+                              {expandedItem.custom_liters && expandedItem.custom_liters.filter(cl => cl.is_active).length > 0 && (
+                                <>
+                                  <div className="col-span-2 my-2 border-t border-cyan-200" />
+                                  <span className="col-span-2 text-sm text-cyan-600 font-medium text-center">
+                                    גדלים מותאמים
+                                  </span>
+                                  {expandedItem.custom_liters
+                                    .filter(cl => cl.is_active)
+                                    .sort((a, b) => a.sort_order - b.sort_order)
+                                    .map((cl) => {
+                                      const customLiterId = `custom_${cl.id}`;
+                                      const literQuantity = expandedState?.liters.find(
+                                        (l) => l.liter_size_id === customLiterId
+                                      )?.quantity || 0;
+                                      return (
+                                        <div
+                                          key={cl.id}
+                                          className={cn(
+                                            "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                            literQuantity > 0
+                                              ? "border-cyan-500 bg-cyan-50"
+                                              : "border-gray-200 bg-white"
+                                          )}
+                                        >
+                                          <span className={cn(
+                                            "text-lg font-bold mb-2",
+                                            literQuantity > 0 ? "text-cyan-700" : "text-gray-700"
+                                          )}>
+                                            {cl.label}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => literQuantity > 0 && handleSidesLiterChange(expandedSideId!, customLiterId, literQuantity - 1)}
+                                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                            >
+                                              −
+                                            </button>
+                                            <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleSidesLiterChange(expandedSideId!, customLiterId, literQuantity + 1)}
+                                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-bold"
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Notes field */}
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              📝 הערות
+                            </label>
+                            <textarea
+                              value={expandedState?.note || ""}
+                              onChange={(e) => handleSidesNoteChange(expandedSideId, e.target.value)}
+                              placeholder="הוסף הערה..."
+                              className="w-full h-20 px-3 py-2 text-sm border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              dir="rtl"
+                            />
+                          </div>
+
+                          {/* Cancel button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleCancelSide(expandedSideId);
+                              setExpandedSideId(null);
+                            }}
+                            className="w-full h-10 mb-4 bg-gray-100 text-gray-600 font-semibold rounded-xl border-2 border-gray-300 hover:bg-gray-200 active:scale-[0.98] transition-all"
+                          >
+                            ביטול
+                          </button>
+
+                          {/* Done button */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSideId(null)}
+                            className="w-full h-12 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 active:scale-[0.98] transition-all"
+                          >
+                            אישור
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                }
+
                 return (
                   <FoodItemPopup
                     item={expandedItem}
-                    quantity={0}
-                    sizeQuantity={{
+                    quantity={measurementType === "none" ? (expandedState?.quantity || 0) : 0}
+                    sizeQuantity={useSizeMode ? {
                       big: expandedState?.size_big || 0,
                       small: expandedState?.size_small || 0,
-                    }}
-                    useSizeMode={!hasVariations}
+                    } : undefined}
+                    useSizeMode={useSizeMode}
                     selectedPreparationId={expandedState?.preparation_id}
                     note={expandedState?.note}
                     variationQuantities={expandedState?.variations}
-                    onQuantityChange={() => {}}
-                    onSizeChange={(size, qty) =>
+                    onQuantityChange={measurementType === "none" ? (qty) => handleSidesQuantityChange(expandedSideId, qty) : () => {}}
+                    onSizeChange={useSizeMode ? (size, qty) =>
                       handleSidesSizeChange(expandedSideId, size, qty)
-                    }
+                    : undefined}
                     onPreparationChange={(prepId, prepName) =>
                       handleSidesPreparationChange(expandedSideId, prepId, prepName)
                     }
@@ -2640,6 +2953,60 @@ const dayName = getHebrewDay(formState.order_date);
                                       </div>
                                     );
                                   })}
+
+                                  {/* Custom liter sizes for this item */}
+                                  {expandedItem.custom_liters && expandedItem.custom_liters.filter(cl => cl.is_active).length > 0 && (
+                                    <>
+                                      <div className="col-span-2 my-2 border-t border-cyan-200" />
+                                      <span className="col-span-2 text-sm text-cyan-600 font-medium text-center">
+                                        גדלים מותאמים
+                                      </span>
+                                      {expandedItem.custom_liters
+                                        .filter(cl => cl.is_active)
+                                        .sort((a, b) => a.sort_order - b.sort_order)
+                                        .map((cl) => {
+                                          const customLiterId = `custom_${cl.id}`;
+                                          const literQuantity = expandedState?.liters.find(
+                                            (l) => l.liter_size_id === customLiterId
+                                          )?.quantity || 0;
+                                          return (
+                                            <div
+                                              key={cl.id}
+                                              className={cn(
+                                                "flex flex-col items-center rounded-xl border-2 p-3 transition-all",
+                                                literQuantity > 0
+                                                  ? "border-cyan-500 bg-cyan-50"
+                                                  : "border-gray-200 bg-white"
+                                              )}
+                                            >
+                                              <span className={cn(
+                                                "text-lg font-bold mb-2",
+                                                literQuantity > 0 ? "text-cyan-700" : "text-gray-700"
+                                              )}>
+                                                {cl.label}
+                                              </span>
+                                              <div className="flex items-center gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => literQuantity > 0 && handleExtrasLiterChange(expandedExtraId!, customLiterId, literQuantity - 1)}
+                                                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold"
+                                                >
+                                                  −
+                                                </button>
+                                                <span className="w-8 text-center text-lg font-bold">{literQuantity}</span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleExtrasLiterChange(expandedExtraId!, customLiterId, literQuantity + 1)}
+                                                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white font-bold"
+                                                >
+                                                  +
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                    </>
+                                  )}
                                 </div>
                               </div>
 

@@ -361,6 +361,7 @@ export default function PrintPreviewPage() {
       const extraItem = printData.extraItems?.find(e => e.source_food_item_id === item.food_item_id && e.source_category === 'sides');
       const combinedSizeBig = (item.size_big || 0) + (extraItem?.size_big || 0);
       const combinedSizeSmall = (item.size_small || 0) + (extraItem?.size_small || 0);
+      const combinedQuantity = (item.quantity || 0) + (extraItem?.quantity || 0);
       // If there's an extra item for this food item, mark as selected even if not originally selected
       const isSelected = item.selected || !!extraItem;
 
@@ -398,6 +399,12 @@ export default function PrintPreviewPage() {
         selected: isSelected,
         size_big: combinedSizeBig,
         size_small: combinedSizeSmall,
+        quantity: combinedQuantity,
+        regular_quantity: combinedQuantity,
+        liters: item.liters?.filter(l => l.quantity > 0).map(l => ({
+          label: l.label || "",
+          quantity: l.quantity,
+        })),
         variations: combinedVariations,
         preparation_name: item.preparation_name || extraItem?.preparation_name,
         note: item.note || extraItem?.note,

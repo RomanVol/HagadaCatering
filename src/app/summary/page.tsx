@@ -491,7 +491,7 @@ export default function SummaryPage() {
       addOns: { addon_id: string; name: string; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[] }[];
     }[] = [];
     const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; preparation_name?: string; note: string }[] = [];
-    const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; note: string }[] = [];
+    const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[]; note: string }[] = [];
     const mains: { food_item_id: string; name: string; selected: boolean; quantity: number; portion_multiplier?: number; portion_unit?: string; note: string }[] = [];
     const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string; price?: number | null }[] = [];
     const bakery: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
@@ -533,6 +533,8 @@ export default function SummaryPage() {
           selected: hasContent,
           size_big: item.size_big,
           size_small: item.size_small,
+          quantity: item.regular_quantity,
+          liters: item.liters,
           note: item.note,
         });
       } else if (item.category_id === mainsCategory?.id) {
@@ -1062,6 +1064,10 @@ export default function SummaryPage() {
                                 <span className="text-gray-900 font-medium">
                                   {item.liter_size
                                     ? `${item.liter_size.label} × ${item.quantity}`
+                                    : item.size_type === "big"
+                                    ? `ג׳: ${item.quantity}`
+                                    : item.size_type === "small"
+                                    ? `ק׳: ${item.quantity}`
                                     : `× ${item.quantity}`}
                                 </span>
                               </div>

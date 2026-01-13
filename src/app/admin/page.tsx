@@ -622,6 +622,12 @@ export default function AdminPage() {
     return selectedCategory?.name_en === "extras";
   }, [categories, selectedCategoryId]);
 
+  // Check if selected category is sides/תוספות (supports measurement types)
+  const isSidesCategory = React.useMemo(() => {
+    const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
+    return selectedCategory?.name_en === "sides";
+  }, [categories, selectedCategoryId]);
+
   // Check if selected category is bakery (supports measurement types like extras)
   const isBakeryCategory = React.useMemo(() => {
     const selectedCategory = categories.find((c) => c.id === selectedCategoryId);
@@ -734,7 +740,7 @@ export default function AdminPage() {
             onClick={() => {
               setIsAddingItem(true);
               setNewItemName("");
-              setNewItemMeasurementType((isSaladsCategory || isExtrasCategory || isBakeryCategory) ? "liters" : "none");
+              setNewItemMeasurementType((isSaladsCategory || isSidesCategory || isExtrasCategory || isBakeryCategory) ? "liters" : "none");
             }}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 active:scale-[0.98] transition-all text-sm"
           >
@@ -763,8 +769,8 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Measurement Type - For Salads, Extras and Bakery */}
-              {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
+              {/* Measurement Type - For Salads, Sides, Extras and Bakery */}
+              {(isSaladsCategory || isSidesCategory || isExtrasCategory || isBakeryCategory) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {LABELS.measurementType}
@@ -846,8 +852,8 @@ export default function AdminPage() {
                           autoFocus
                         />
                         
-                        {/* Measurement type for salads, extras and bakery */}
-                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
+                        {/* Measurement type for salads, sides, extras and bakery */}
+                        {(isSaladsCategory || isSidesCategory || isExtrasCategory || isBakeryCategory) && (
                           <div className="flex flex-wrap gap-2">
                             {MEASUREMENT_OPTIONS.map((option) => (
                               <button
@@ -894,8 +900,8 @@ export default function AdminPage() {
                     ) : (
                       <div>
                         <span className="font-medium text-gray-900">{item.name}</span>
-                        {/* Show measurement type for salads, extras and bakery */}
-                        {(isSaladsCategory || isExtrasCategory || isBakeryCategory) && (
+                        {/* Show measurement type for salads, sides, extras and bakery */}
+                        {(isSaladsCategory || isSidesCategory || isExtrasCategory || isBakeryCategory) && (
                           <span className="mr-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                             {getMeasurementLabel(item.measurement_type)}
                           </span>
@@ -950,8 +956,8 @@ export default function AdminPage() {
                           </button>
                         )}
 
-                        {/* Custom liters button - only for salad items with measurement_type='liters' */}
-                        {isSaladsCategory && item.is_active && item.measurement_type === "liters" && (
+                        {/* Custom liters button - for salad, sides and extras items with measurement_type='liters' */}
+                        {(isSaladsCategory || isSidesCategory || isExtrasCategory) && item.is_active && item.measurement_type === "liters" && (
                           <button
                             onClick={() => openCustomLitersModal(item)}
                             className="w-10 h-10 flex items-center justify-center rounded-lg bg-cyan-100 text-cyan-600 hover:bg-cyan-200 transition-colors"
