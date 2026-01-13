@@ -951,7 +951,7 @@ function PrintItemRow({
                 )}> {quantityStr}</span>
               )}
               {/* Price display for extras items */}
-              {item.price && item.price > 0 && (
+              {item.price != null && item.price > 0 && (
                 <span className="font-bold text-lg text-red-600 mr-2">
                   (₪{item.price})
                 </span>
