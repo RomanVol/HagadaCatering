@@ -424,6 +424,7 @@ export default function SummaryPage() {
       note: string;
       preparation_name: string;
       price: number | null;
+      variations: { variation_id: string; name: string; size_big: number; size_small: number }[];
     }>();
 
     for (const item of mainItems) {
@@ -444,6 +445,7 @@ export default function SummaryPage() {
           note: item.item_note || "",
           preparation_name: item.preparation?.name || "",
           price: item.price ?? null,
+          variations: [],
         });
       }
 
@@ -456,6 +458,21 @@ export default function SummaryPage() {
           label: item.liter_size.label,
           quantity: item.quantity,
         });
+      }
+      // Handle variations (e.g., rice types: לבן, ירוק, אשפלו, אדום, לבנוני)
+      else if (item.variation_id && item.variation) {
+        const existingVar = entry.variations.find(v => v.variation_id === item.variation_id);
+        if (existingVar) {
+          if (item.size_type === 'big') existingVar.size_big += item.quantity;
+          else if (item.size_type === 'small') existingVar.size_small += item.quantity;
+        } else {
+          entry.variations.push({
+            variation_id: item.variation_id,
+            name: item.variation.name,
+            size_big: item.size_type === 'big' ? item.quantity : 0,
+            size_small: item.size_type === 'small' ? item.quantity : 0,
+          });
+        }
       }
       // Handle size quantities (ג/ק)
       else if (item.size_type === "big") {
@@ -491,14 +508,15 @@ export default function SummaryPage() {
       addOns: { addon_id: string; name: string; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[] }[];
     }[] = [];
     const middleCourses: { food_item_id: string; name: string; selected: boolean; quantity: number; preparation_name?: string; note: string }[] = [];
-    const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[]; note: string }[] = [];
+    const sides: { food_item_id: string; name: string; selected: boolean; size_big: number; size_small: number; quantity: number; liters: { liter_size_id: string; label: string; quantity: number }[]; note: string; variations?: { variation_id: string; name: string; size_big: number; size_small: number }[] }[] = [];
     const mains: { food_item_id: string; name: string; selected: boolean; quantity: number; portion_multiplier?: number; portion_unit?: string; note: string }[] = [];
     const extras: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string; price?: number | null }[] = [];
     const bakery: { food_item_id: string; name: string; selected: boolean; quantity: number; note: string }[] = [];
 
     for (const item of itemsByFoodItem.values()) {
       const hasContent = item.liters.length > 0 || item.size_big > 0 ||
-                         item.size_small > 0 || item.regular_quantity > 0;
+                         item.size_small > 0 || item.regular_quantity > 0 ||
+                         item.variations.some(v => v.size_big > 0 || v.size_small > 0);
 
       if (item.category_id === saladsCategory?.id) {
         // Get add-ons for this salad
@@ -536,6 +554,12 @@ export default function SummaryPage() {
           quantity: item.regular_quantity,
           liters: item.liters,
           note: item.note,
+          variations: item.variations.filter(v => v.size_big > 0 || v.size_small > 0).map(v => ({
+            variation_id: v.variation_id,
+            name: v.name,
+            size_big: v.size_big,
+            size_small: v.size_small,
+          })),
         });
       } else if (item.category_id === mainsCategory?.id) {
         const foodItem = foodItems.find(f => f.id === item.food_item_id);

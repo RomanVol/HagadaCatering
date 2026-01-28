@@ -367,17 +367,8 @@ export function PrintOrderPage({
       parts.push(`×${item.regular_quantity}`);
     }
 
-    // For items with variations (like rice)
-    if (item.variations && item.variations.length > 0) {
-      item.variations.forEach(v => {
-        const vParts: string[] = [];
-        if (v.size_big > 0) vParts.push(`ג׳:${v.size_big}`);
-        if (v.size_small > 0) vParts.push(`ק׳:${v.size_small}`);
-        if (vParts.length > 0) {
-          parts.push(`${v.name} ${vParts.join(" ")}`);
-        }
-      });
-    }
+    // NOTE: Variations are NOT included here - they are displayed separately below the item name
+    // to allow proper wrapping when there are many variations
 
     // For simple quantity (mains, middle courses) - only if no calculatedQuantity
     if (item.quantity && item.quantity > 0 && !item.liters && !item.size_big && !item.size_small && !item.variations?.length) {
@@ -387,6 +378,21 @@ export function PrintOrderPage({
     // NOTE: Add-ons are NOT included here - they are displayed separately below the item
 
     return parts.join(" | ");
+  };
+
+  // Format variations display - returns array of variation strings for wrapping
+  // Each variation stays together as an atomic unit (name + quantity)
+  const formatVariations = (item: PrintOrderItem): string[] => {
+    if (!item.variations || item.variations.length === 0) return [];
+
+    return item.variations
+      .filter(v => v.size_big > 0 || v.size_small > 0)
+      .map(v => {
+        const vParts: string[] = [];
+        if (v.size_big > 0) vParts.push(`ג׳:${v.size_big}`);
+        if (v.size_small > 0) vParts.push(`ק׳:${v.size_small}`);
+        return `${v.name} ${vParts.join(" ")}`;
+      });
   };
 
   // Format add-ons display - shown on separate line below item
@@ -542,6 +548,7 @@ export function PrintOrderPage({
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
                     formatAddOns={formatAddOns}
+                    formatVariations={formatVariations}
                   />
                 ))}
               </div>
@@ -569,6 +576,7 @@ export function PrintOrderPage({
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
                       formatAddOns={formatAddOns}
+                      formatVariations={formatVariations}
                     />
                   ))}
                 </div>
@@ -593,6 +601,7 @@ export function PrintOrderPage({
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
                       formatAddOns={formatAddOns}
+                      formatVariations={formatVariations}
                     />
                   ))}
                 </div>
@@ -617,6 +626,7 @@ export function PrintOrderPage({
                       onDragEnd={handleDragEnd}
                       formatQuantity={formatQuantity}
                       formatAddOns={formatAddOns}
+                      formatVariations={formatVariations}
                     />
                   ))}
                 </div>
@@ -649,6 +659,7 @@ export function PrintOrderPage({
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
                     formatAddOns={formatAddOns}
+                    formatVariations={formatVariations}
                   />
                 ))}
               </div>
@@ -671,6 +682,7 @@ export function PrintOrderPage({
                     onDragEnd={handleDragEnd}
                     formatQuantity={formatQuantity}
                     formatAddOns={formatAddOns}
+                    formatVariations={formatVariations}
                     highlightColor={itemColors[item.id]}
                     onColorCycle={() => cycleItemColor(item.id)}
                   />
@@ -859,6 +871,7 @@ interface PrintItemRowProps {
   onDragEnd: () => void;
   formatQuantity: (item: PrintOrderItem) => string;
   formatAddOns: (item: PrintOrderItem) => string[];
+  formatVariations: (item: PrintOrderItem) => string[];
 }
 
 function PrintItemRow({
@@ -874,6 +887,7 @@ function PrintItemRow({
   onDragEnd,
   formatQuantity,
   formatAddOns,
+  formatVariations,
 }: PrintItemRowProps) {
   // Get background color class based on highlight
   const bgColorClass = {
@@ -912,6 +926,7 @@ function PrintItemRow({
 
   const quantityStr = formatQuantity(item);
   const addOnsArr = formatAddOns(item);
+  const variationsArr = formatVariations(item);
 
   return (
     <div
@@ -934,7 +949,7 @@ function PrintItemRow({
           <GripVertical className="h-5 w-5 text-gray-400 print:hidden flex-shrink-0 mt-0.5" />
 
           <div className="flex-1">
-            {/* First line: Item name + quantity + price - ALWAYS on same line */}
+            {/* First line: Item name + non-variation quantity + price */}
             <div className="whitespace-nowrap">
               {/* Item name */}
               <span className={cn(
@@ -943,7 +958,7 @@ function PrintItemRow({
               )}>
                 {item.name}
               </span>
-              {/* Main Quantity - always same line as name */}
+              {/* Main Quantity (non-variation) - always same line as name */}
               {quantityStr && (
                 <span className={cn(
                   "font-bold text-lg mr-2",
@@ -957,7 +972,17 @@ function PrintItemRow({
                 </span>
               )}
             </div>
-            {/* Second line: Preparation name (if exists) - stays on its own line */}
+            {/* Variations - wrappable, each variation stays together as atomic unit */}
+            {variationsArr.length > 0 && (
+              <div className="flex flex-wrap gap-x-1 text-lg font-bold text-gray-700">
+                {variationsArr.map((variation, idx) => (
+                  <span key={idx} className="whitespace-nowrap inline-block">
+                    {variation}{idx < variationsArr.length - 1 ? ' |' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Preparation name (if exists) - stays on its own line */}
             {item.preparation_name && (
               <div className="mr-6 whitespace-nowrap">
                 <span className="text-lg font-bold text-gray-700">

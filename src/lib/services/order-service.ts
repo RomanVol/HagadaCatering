@@ -394,6 +394,10 @@ export interface OrderWithDetails {
       name: string;
       measurement_type: string;
     };
+    variation?: {
+      id: string;
+      name: string;
+    };
   })[];
   extra_items?: {
     id: string;
@@ -480,7 +484,8 @@ export async function getOrdersByDateRange(
       food_item:food_items(id, name, category_id, has_liters),
       liter_size:liter_sizes(id, label, size),
       preparation:food_item_preparations(id, name),
-      add_on:food_item_add_ons(id, name, measurement_type)
+      add_on:food_item_add_ons(id, name, measurement_type),
+      variation:food_item_variations(id, name)
     `)
     .in("order_id", orderIds);
 
